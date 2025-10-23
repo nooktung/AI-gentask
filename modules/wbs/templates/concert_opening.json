@@ -1,0 +1,180 @@
+{
+  "epics": [
+    {
+      "epic_id": "EP-001",
+      "name": "Stage & AV Setup",
+      "department": "Logistics",
+      "description": "Setup stage and audio-visual systems"
+    },
+    {
+      "epic_id": "EP-002", 
+      "name": "Artist Management",
+      "department": "External Relations",
+      "description": "Manage artists and contracts"
+    },
+    {
+      "epic_id": "EP-003",
+      "name": "Media & Marketing",
+      "department": "Media/Marketing", 
+      "description": "Event communication and marketing"
+    },
+    {
+      "epic_id": "EP-004",
+      "name": "Security & Access",
+      "department": "Logistics",
+      "description": "Security and access control"
+    },
+    {
+      "epic_id": "EP-005",
+      "name": "Finance & Budget",
+      "department": "Finance",
+      "description": "Budget and cost management"
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "T-001",
+      "epic_id": "EP-001",
+      "name": "Survey stage area",
+      "category": "Stage/AV",
+      "depends_on": []
+     
+     
+    },
+    {
+      "task_id": "T-002", 
+      "epic_id": "EP-001",
+      "name": "Design sound system",
+      "category": "Stage/AV",
+      "depends_on": ["T-001"]
+     
+     
+    },
+    {
+      "task_id": "T-003",
+      "epic_id": "EP-001", 
+      "name": "Rent AV equipment",
+      "category": "Stage/AV",
+      "depends_on": ["T-002"]
+     
+     
+    },
+    {
+      "task_id": "T-004",
+      "epic_id": "EP-001",
+      "name": "Install system",
+      "category": "Stage/AV", 
+      "depends_on": ["T-003"]
+     
+     
+    },
+    {
+      "task_id": "T-005",
+      "epic_id": "EP-001",
+      "name": "Final soundcheck",
+      "category": "Stage/AV",
+      "depends_on": ["T-004"]
+     
+     
+    },
+    {
+      "task_id": "T-006",
+      "epic_id": "EP-002",
+      "name": "Sign artist contract", 
+      "category": "Artist",
+      "depends_on": []
+     
+     
+    },
+    {
+      "task_id": "T-007",
+      "epic_id": "EP-002",
+      "name": "Process artist rider",
+      "category": "Artist",
+      "depends_on": ["T-006"]
+     
+     
+    },
+    {
+      "task_id": "T-008",
+      "epic_id": "EP-002", 
+      "name": "Arrange transportation",
+      "category": "Artist",
+      "depends_on": ["T-006"]
+     
+     
+    },
+    {
+      "task_id": "T-009",
+      "epic_id": "EP-003",
+      "name": "Design key visual",
+      "category": "Media",
+      "depends_on": []
+     
+     
+    },
+    {
+      "task_id": "T-010",
+      "epic_id": "EP-003",
+      "name": "Approve key visual",
+      "category": "Media", 
+      "depends_on": ["T-009"]
+     
+     
+    },
+    {
+      "task_id": "T-011",
+      "epic_id": "EP-003",
+      "name": "Create rundown/cue sheet",
+      "category": "Media",
+      "depends_on": ["T-010"]
+     
+     
+    },
+    {
+      "task_id": "T-012",
+      "epic_id": "EP-004",
+      "name": "Create flow diagram",
+      "category": "Security",
+      "depends_on": []
+     
+     
+    },
+    {
+      "task_id": "T-013",
+      "epic_id": "EP-004",
+      "name": "Setup ticket checking system",
+      "category": "Security",
+      "depends_on": ["T-012"]
+     
+     
+    },
+    {
+      "task_id": "T-014",
+      "epic_id": "EP-005",
+      "name": "Create budget estimate",
+      "category": "Finance",
+      "depends_on": []
+     
+     
+    },
+    {
+      "task_id": "T-015",
+      "epic_id": "EP-005",
+      "name": "Track expenses",
+      "category": "Finance",
+      "depends_on": ["T-014"]
+     
+     
+    },
+    {
+      "task_id": "T-016",
+      "epic_id": "EP-005",
+      "name": "Final accounting",
+      "category": "Finance",
+      "depends_on": ["T-015"]
+     
+     
+    }
+  ]
+}

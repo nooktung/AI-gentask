@@ -3,7 +3,7 @@ from sentence_transformers import SentenceTransformer
 import chromadb
 
 # ====== Cấu hình ======
-DATA_DIR = "./data/global_kb"        # Thư mục chứa các file JSON tài liệu
+DATA_DIR = "./kb/global"        # Thư mục chứa các file JSON tài liệu (đã sửa để khớp repo)
 CHROMA_DIR = "./chroma_db"           # Thư mục lưu vector database
 COLLECTION_NAME = "global_kb"        # Tên collection trong Chroma
 EMBED_MODEL = os.getenv("EMBED_MODEL", "all-MiniLM-L6-v2")
@@ -37,7 +37,7 @@ def build_metadata(doc: dict):
 
 
 def ingest():
-    print("🚀 Bắt đầu ingest dữ liệu global KB...")
+    print("🚀 Bắt đầu ingest dữ liệu global KB (from ./kb/global)...")
     embedder = get_embedder()
     col = get_chroma_collection()
 

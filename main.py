@@ -1,21 +1,20 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from models.schemas import EventInput
 from services.pipeline import run_pipeline
+from modules.wbs.router import router as wbs_router
 
-app = FastAPI(title="Task Generation RAG API")
+app = FastAPI(title="Event WBS Generator API")
 
-@app.post("/generate-tasks")
-def generate_tasks(payload: EventInput):
-    # Chỉ chấp nhận format phẳng (không có trường 'event')
-    # FastAPI sẽ tự 422 nếu client gửi {"event": {...}}
+# Register WBS router
+app.include_router(wbs_router)
+
+
+@app.post("/generate-wbs")
+def generate_wbs_endpoint(payload: EventInput):
     data = payload.model_dump(exclude_none=True)
+    return run_pipeline(data)
 
-    if not (data.get("name") or data.get("description")):
-        raise HTTPException(status_code=400, detail="Missing 'name' or 'description'")
-
-    result = run_pipeline(data)
-    return result
 
 @app.get("/")
 def root():
-    return {"message": "RAG Task Generator API is running"}
+    return {"message": "Event WBS Generator API is running"}

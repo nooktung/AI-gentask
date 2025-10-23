@@ -1,32 +1,74 @@
 {
   "doc_id": "workshop_ai",
-  "event_type": ["Workshop", "Seminar", "Buổi chia sẻ học thuật"],
+  "event_type": ["conference", "Workshop", "Seminar", "Buổi chia sẻ học thuật"],
   "context_tags": ["indoor", "no_sponsor", "academic"],
   "baseline_tasks": [
     {
       "name": "Truyền thông & Media",
-      "owner_department": "Media",
-      "notes": "Thiết kế poster đơn giản, tạo link đăng ký, bài đăng trên fanpage."
+      "owner_department": "Media/Marketing",
+      "notes": "Thiết kế poster đơn giản, tạo link đăng ký, bài đăng trên fanpage.",
+      "deadline": "T-14",
+      "priority": "medium",
+      "dependencies": []
     },
     {
       "name": "Chuẩn bị phòng & thiết bị",
       "owner_department": "Hậu cần",
-      "notes": "Kiểm tra máy chiếu, âm thanh, laptop, micro."
+      "notes": "Kiểm tra máy chiếu, âm thanh, laptop, micro.",
+      "deadline": "T-3",
+      "priority": "high",
+      "dependencies": []
     },
     {
       "name": "Đăng ký & Check-in",
       "owner_department": "Hậu cần",
-      "notes": "Chuẩn bị form đăng ký, bàn tiếp đón và QR check-in."
+      "notes": "Chuẩn bị form đăng ký, bàn tiếp đón và QR check-in.",
+      "deadline": "T-7",
+      "priority": "medium",
+      "dependencies": ["Truyền thông & Media"]
     },
     {
       "name": "Xin duyệt IC-PDP",
       "owner_department": "BTC/IC",
-      "notes": "Nộp hồ sơ sự kiện nội bộ theo quy trình FPTU."
+      "notes": "Nộp hồ sơ sự kiện nội bộ theo quy trình FPTU.",
+      "deadline": "T-21",
+      "priority": "critical",
+      "dependencies": []
     },
     {
       "name": "Nội dung & MC",
       "owner_department": "Nội dung",
-      "notes": "Viết agenda, chọn diễn giả, chuẩn bị script và câu hỏi thảo luận."
+      "notes": "Viết agenda, chọn diễn giả, chuẩn bị script và câu hỏi thảo luận.",
+      "deadline": "T-10",
+      "priority": "high",
+      "dependencies": []
+    }
+  ],
+  "milestones": [
+    {
+      "name": "Speaker Lineup Confirmed",
+      "deadline": "T-14",
+      "description": "Danh sách diễn giả đã được xác nhận"
+    },
+    {
+      "name": "Venue Booked",
+      "deadline": "T-21",
+      "description": "Địa điểm đã được đặt"
+    },
+    {
+      "name": "Registration Opens",
+      "deadline": "T-14",
+      "description": "Mở đăng ký cho người tham dự"
+    },
+    {
+      "name": "Final Agenda Published",
+      "deadline": "T-7",
+      "description": "Lịch trình cuối cùng được công bố"
+    },
+    {
+      "name": "Workshop Starts",
+      "deadline": "T-0",
+      "description": "Workshop chính thức bắt đầu"
     }
   ]
 }

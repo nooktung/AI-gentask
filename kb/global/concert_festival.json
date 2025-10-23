@@ -1,37 +1,82 @@
 {
   "doc_id": "concert_festival",
-  "event_type": ["Concert", "Music Festival", "Show âm nhạc sinh viên"],
+  "event_type": ["concert_opening", "Concert", "Music Festival", "Show âm nhạc sinh viên"],
   "context_tags": ["outdoor", "night_event", "sound_stage", "vip", "security"],
   "baseline_tasks": [
     {
       "name": "Sân khấu & Âm thanh ánh sáng",
       "owner_department": "Hậu cần",
-      "notes": "Thuê sân khấu, kỹ thuật âm thanh, ánh sáng và setup tổng thể."
+      "notes": "Thuê sân khấu, kỹ thuật âm thanh, ánh sáng và setup tổng thể.",
+      "deadline": "T-7",
+      "priority": "high",
+      "dependencies": []
     },
     {
       "name": "Truyền thông & KOL",
-      "owner_department": "Media",
-      "notes": "Lên kế hoạch truyền thông, hợp tác KOL/DJ, trailer video."
+      "owner_department": "Media/Marketing",
+      "notes": "Lên kế hoạch truyền thông, hợp tác KOL/DJ, trailer video.",
+      "deadline": "T-14",
+      "priority": "high",
+      "dependencies": []
     },
     {
       "name": "Đối ngoại & Nghệ sĩ",
       "owner_department": "Đối ngoại",
-      "notes": "Liên hệ và ký hợp đồng với ca sĩ, DJ, khách mời đặc biệt."
+      "notes": "Liên hệ và ký hợp đồng với ca sĩ, DJ, khách mời đặc biệt.",
+      "deadline": "T-21",
+      "priority": "critical",
+      "dependencies": []
     },
     {
       "name": "An ninh & Vé vào cổng",
       "owner_department": "Hậu cần",
-      "notes": "Phối hợp bảo vệ, kiểm soát vé và crowd control."
+      "notes": "Phối hợp bảo vệ, kiểm soát vé và crowd control.",
+      "deadline": "T-3",
+      "priority": "high",
+      "dependencies": ["Sân khấu & Âm thanh ánh sáng"]
     },
     {
       "name": "Xin duyệt IC-PDP & PCCC",
       "owner_department": "BTC/IC",
-      "notes": "Chuẩn bị hồ sơ, giấy phép âm thanh công cộng, và phương án an toàn."
+      "notes": "Chuẩn bị hồ sơ, giấy phép âm thanh công cộng, và phương án an toàn.",
+      "deadline": "T-30",
+      "priority": "critical",
+      "dependencies": []
     },
     {
       "name": "Nội dung chương trình & MC",
       "owner_department": "Nội dung",
-      "notes": "Xây timeline biểu diễn, script MC, và các phân đoạn sân khấu."
+      "notes": "Xây timeline biểu diễn, script MC, và các phân đoạn sân khấu.",
+      "deadline": "T-7",
+      "priority": "medium",
+      "dependencies": ["Đối ngoại & Nghệ sĩ"]
+    }
+  ],
+  "milestones": [
+    {
+      "name": "Contracts Signed",
+      "deadline": "T-21",
+      "description": "Tất cả hợp đồng nghệ sĩ và nhà cung cấp đã ký"
+    },
+    {
+      "name": "Key Visual Approved", 
+      "deadline": "T-14",
+      "description": "Key visual và ấn phẩm truyền thông đã được duyệt"
+    },
+    {
+      "name": "Vendor List Locked",
+      "deadline": "T-10",
+      "description": "Danh sách nhà cung cấp cuối cùng đã xác định"
+    },
+    {
+      "name": "Final Rehearsal Complete",
+      "deadline": "T-1",
+      "description": "Tổng duyệt cuối cùng hoàn tất"
+    },
+    {
+      "name": "Doors Open",
+      "deadline": "T-0",
+      "description": "Sự kiện chính thức bắt đầu"
     }
   ]
 }

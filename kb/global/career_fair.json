@@ -1,37 +1,114 @@
 {
   "doc_id": "career_fair",
-  "event_type": ["Career Fair", "Ngày hội việc làm", "Job Fair"],
+  "event_type": ["food_festival", "Career Fair", "Ngày hội việc làm", "Job Fair"],
   "context_tags": ["outdoor", "sponsor", "vip"],
   "baseline_tasks": [
     {
-      "name": "Truyền thông & Media",
-      "owner_department": "Media",
-      "notes": "Thiết kế poster, bài đăng mạng xã hội, livestream sự kiện."
+      "name": "Lập kế hoạch truyền thông",
+      "owner_department": "Media/Marketing",
+      "description": "Xác định mục tiêu, kênh và timeline truyền thông cho ngày hội việc làm.",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": []
     },
     {
-      "name": "Đối ngoại & Nhà tài trợ",
+      "name": "Thiết kế bộ nhận diện (Key Visual)",
+      "owner_department": "Media/Marketing",
+      "description": "Thiết kế chủ đạo cho ấn phẩm online/offline, guideline sử dụng.",
+      "priority": "medium",
+      "suggested_duration_days": 2,
+      "dependencies": ["Lập kế hoạch truyền thông"]
+    },
+    {
+      "name": "Triển khai chiến dịch truyền thông",
+      "owner_department": "Media/Marketing",
+      "description": "Đăng tải nội dung, chạy quảng cáo, tối ưu theo KPI.",
+      "priority": "medium",
+      "suggested_duration_days": 2,
+      "dependencies": ["Thiết kế bộ nhận diện (Key Visual)"]
+    },
+    {
+      "name": "Tiếp cận doanh nghiệp tài trợ",
       "owner_department": "Đối ngoại",
-      "notes": "Liên hệ doanh nghiệp, ký hợp đồng booth, gói tài trợ và phối hợp setup."
+      "description": "Liệt kê mục tiêu, gửi thư mời tài trợ/đồng hành.",
+      "priority": "medium",
+      "suggested_duration_days": 2,
+      "dependencies": []
+    },
+    {
+      "name": "Đàm phán & chốt gói tài trợ",
+      "owner_department": "Đối ngoại",
+      "description": "Thống nhất quyền lợi, hạng mục hỗ trợ và timeline thanh toán.",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": ["Tiếp cận doanh nghiệp tài trợ"]
+    },
+    {
+      "name": "Ký hợp đồng tài trợ",
+      "owner_department": "Đối ngoại",
+      "description": "Hoàn tất hợp đồng, thủ tục pháp lý và đầu mối liên hệ.",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": ["Đàm phán & chốt gói tài trợ"]
+    },
+    {
+      "name": "Chuẩn bị phương án an toàn & PCCC",
+      "owner_department": "Hậu cần",
+      "description": "Phương án an toàn điện, cứu hộ, PCCC và y tế trực.",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": []
+    },
+    {
+      "name": "Lập phương án thời tiết xấu",
+      "owner_department": "Hậu cần",
+      "description": "Chuẩn bị mái che, dù, kịch bản di dời khi mưa lớn.",
+      "priority": "medium",
+      "suggested_duration_days": 2,
+      "dependencies": ["Chuẩn bị phương án an toàn & PCCC"]
     },
     {
       "name": "Xin duyệt IC-PDP",
       "owner_department": "BTC/IC",
-      "notes": "Soạn hồ sơ xin duyệt sự kiện trước ngày diễn ra 20 ngày."
+      "description": "Soạn nộp hồ sơ xin duyệt sự kiện theo quy định, đúng hạn.",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": []
     },
     {
-      "name": "An toàn & PCCC",
-      "owner_department": "Hậu cần",
-      "notes": "Đảm bảo phương án an toàn, kiểm tra điện, cấp cứu, và PCCC."
-    },
-    {
-      "name": "Phương án thời tiết xấu",
-      "owner_department": "Hậu cần",
-      "notes": "Chuẩn bị dù, mái che, và kế hoạch dự phòng nếu trời mưa."
-    },
-    {
-      "name": "Đón tiếp khách mời VIP",
+      "name": "Chuẩn bị đón tiếp VIP",
       "owner_department": "Đối ngoại",
-      "notes": "Chuẩn bị khu vực tiếp khách, lịch trình di chuyển và quà tặng."
+      "description": "Khu vực tiếp khách, quà tặng, lịch trình di chuyển và đón tiếp.",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": ["Ký hợp đồng tài trợ"]
+    }
+  ],
+  "milestones": [
+    {
+      "name": "Vendor Contracts Signed",
+      "deadline": "T-30",
+      "description": "Tất cả hợp đồng với nhà tài trợ và doanh nghiệp đã ký"
+    },
+    {
+      "name": "Layout Approved",
+      "deadline": "T-14",
+      "description": "Bố cục sự kiện đã được duyệt"
+    },
+    {
+      "name": "Health Permits Obtained", 
+      "deadline": "T-20",
+      "description": "Giấy phép an toàn và PCCC đã được cấp"
+    },
+    {
+      "name": "Setup Complete",
+      "deadline": "T-1",
+      "description": "Setup booth và trang thiết bị hoàn tất"
+    },
+    {
+      "name": "Career Fair Opens",
+      "deadline": "T-0",
+      "description": "Ngày hội việc làm chính thức khai mạc"
     }
   ]
 }
