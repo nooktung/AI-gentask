@@ -1,129 +1,206 @@
-# 🤖 Hệ thống AI RAG Task Generator – Module Phân chia công việc sự kiện (Model 1)
+# 🤖 AI Event WBS Generator - Hệ thống tạo cấu trúc phân chia công việc sự kiện
 
 ---
 
 ## 1. Giới thiệu hệ thống
 
-**AI RAG Task Generator** là **Model 1** trong chuỗi mô hình AI phục vụ nền tảng quản lý sự kiện nội bộ **myFEvent** tại Đại học FPT.
+**AI Event WBS Generator** là hệ thống AI thông minh sử dụng **RAG (Retrieval-Augmented Generation)** và **LLM** để tự động tạo ra **Work Breakdown Structure (WBS)** cho các sự kiện.
 
-Mục tiêu chính:
-- Tự động **sinh ra các đầu việc lớn (macro tasks)** cho từng ban (Trưởng ban, TBTC, Media, Đối ngoại, Hậu cần, v.v.)
-- Kết hợp **kiến trúc RAG (Retrieval-Augmented Generation)** và **mô hình ngôn ngữ lớn (LLM)** để sinh nội dung phù hợp với loại sự kiện.
+### Mục tiêu chính:
+- Tự động **sinh ra cấu trúc phân chia công việc (WBS)** cho các loại sự kiện khác nhau
+- Tạo ra **Epics** và **Tasks** chi tiết với dependencies, timeline và phân công phù hợp
+- Hỗ trợ nhiều loại sự kiện: Concert, Food Festival, Conference, Sport Competition, Career Fair
+- Tích hợp **Knowledge Base** để đảm bảo tính chính xác và phù hợp với từng loại sự kiện
 
-Hệ thống hoạt động như một **API nội bộ** dùng để:
-- Nhận mô tả sự kiện → truy hồi thông tin sự kiện tương tự từ **Knowledge Base (KB)**  
-- Sinh ra danh sách đầu việc chuẩn theo từng ban phụ trách  
-- Trả về kết quả JSON dùng cho **timeline generator** (Model 2) hoặc **optimizer** (Model 3)
+### Tính năng nổi bật:
+- **RAG Pipeline**: Truy hồi thông tin từ Knowledge Base dựa trên loại sự kiện
+- **Smart Scheduling**: Tự động tính toán timeline và dependencies giữa các tasks
+- **Department Assignment**: Phân công công việc phù hợp với từng ban phụ trách
+- **Milestone Tracking**: Xác định các mốc quan trọng trong quá trình tổ chức
+- **Feasibility Check**: Kiểm tra tính khả thi của kế hoạch dựa trên số lượng nhân sự
 
 ---
 
 ## 2. Cấu trúc Repository
 ```
-rag_task_demo/
-├─ main.py # Entry point FastAPI
-├─ .env # Chứa OPENAI_API_KEY và cấu hình model
-├─ .gitignore # Bỏ qua .env, cache, venv, logs
-│
-├─ chroma_db/
-|
-├─ kb/
-│ ├─ global/ # Knowledge Base toàn cục (chuẩn loại sự kiện)
-│ │ ├─ career_fair.json
-│ │ ├─ workshop_ai.json
-│ │ └─ concert_festival.json
-│ └─ user/ # (Tùy chọn) dữ liệu riêng từng người dùng
+AI-gentask/
+├─ main.py                    # Entry point FastAPI
+├─ requirements.txt           # Dependencies
+├─ .env                      # Cấu hình API keys (không commit)
 │
 ├─ models/
-|  └─ schemas.py # Quy ước dữ liệu trả về
-|
-├─ scripts/
-|  └─ ingest_global_chroma.py # Chunking tài liệu và đưa vào vector DB
-|
-├─ services/
-│ ├─ pipeline.py # Điều phối pipeline (retriever → LLM → parser)
-│ ├─ retriever.py # Xử lý embedding & truy hồi tài liệu KB
-│ └─ llm_generator.py # Gọi LLM sinh danh sách task
+│ └─ schemas.py              # Pydantic schemas cho API
 │
-└─ requirements.txt
+├─ modules/
+│ └─ wbs/                    # Work Breakdown Structure module
+│    ├─ router.py            # FastAPI router cho WBS endpoints
+│    ├─ generator.py         # WBS generation logic
+│    ├─ scheduler.py         # Task scheduling & critical path
+│    ├─ validate.py          # Input validation
+│    └─ templates/
+│       └─ concert_opening.json  # Event templates
+│
+├─ services/
+│ ├─ pipeline.py             # Main pipeline orchestration
+│ ├─ retriever.py            # RAG retrieval system
+│ └─ llm_generator.py        # LLM integration & task generation
+│
+├─ kb/
+│ └─ global/                 # Knowledge Base
+│    ├─ career_fair.json     # Career fair event template
+│    ├─ concert_festival.json # Concert event template
+│    └─ workshop_ai.json     # Workshop event template
+│
+├─ scripts/
+│ └─ ingest_global_chroma.py # KB ingestion script
+│
+└─ chroma_db/                # Vector database storage
 ```
-
 
 ---
 
-## 3. Cách chạy dự án (FastAPI)
+## 3. Cài đặt và chạy dự án
 
-### **Bước 1 – Cài thư viện**
-```powershell
+### **Bước 1 – Cài đặt dependencies**
+```bash
 pip install -r requirements.txt
 ```
-### **Bước 2 – Tạo file** `.env`
+
+### **Bước 2 – Cấu hình môi trường**
+Tạo file `.env` trong thư mục gốc:
 ```env
 OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
+LLM_MODEL=gpt-4o-mini
+USE_LLM=1
+EMBED_MODEL=all-MiniLM-L6-v2
+CHROMA_DIR=./chroma_db
+CHROMA_COLLECTION=global_kb
 ```
-⚠️ Không commit .env lên GitHub.
-Đảm bảo .gitignore đã có dòng:
-```gitignore
-.env
-__pycache__/
-venv/
-*.log
+
+### **Bước 3 – Khởi tạo Knowledge Base**
+```bash
+python scripts/ingest_global_chroma.py
 ```
-### **Bước 3 – Chạy server FastAPI**
-```powershell
+
+### **Bước 4 – Chạy server**
+```bash
 python -m uvicorn main:app --reload --port 8000
 ```
-Khi chạy thành công:
-- Swagger UI: http://127.0.0.1:8000/docs
-## 4. Quy trình hoạt động
-### **1️⃣ Nhận đầu vào sự kiện**
+
+Truy cập Swagger UI: http://127.0.0.1:8000/docs
+
+---
+
+## 4. API Endpoints
+
+### **POST /api/wbs/generate**
+Tạo WBS cho sự kiện mới
+
+**Request Body:**
 ```json
 {
-  "name": "Ngày hội việc làm K2C7",
-  "description": "Sự kiện ngoài trời có nhiều doanh nghiệp, gian hàng tuyển dụng và khách mời VIP.",
-  "event_type_guess": "Career Fair",
-  "outdoor": true,
-  "has_sponsor": true,
-  "has_vip": true
+  "event_name": "Concert Opening Night",
+  "event_type": "concert_opening",
+  "event_date": "2024-12-25",
+  "start_date": "2024-12-01",
+  "venue": "FPT University HCM",
+  "headcount_total": 20,
+  "departments": ["Hậu cần", "Media", "Đối ngoại", "Tài chính"]
 }
 ```
-### **2️⃣ Truy hồi KB tương đồng**
-- Dùng SentenceTransformer để embed mô tả sự kiện.
 
-- Tính độ tương đồng cosine với các file KB trong `kb/global/`.
-### **3️⃣ Ghép prompt RAG**
-- Lấy thông tin từ các file KB phù hợp → đưa vào ngữ cảnh cho mô hình.
-### **4️⃣ Sinh danh sách task qua LLM**
-- Mô hình (gpt-4o-mini) hoặc các mô hình local sinh các task lớn theo từng ban.
-### **5️⃣ Trả về kết quả JSON**
-```
+**Response:**
+```json
 {
-  "retrieved_docs": ["career_fair", "workshop_ai"],
+  "status": "ok",
+  "event_id": "EVT-20241225-001",
+  "meta": {
+    "event_name": "Concert Opening Night",
+    "event_type": "concert_opening",
+    "event_date": "2024-12-25",
+    "venue": "FPT University HCM",
+    "headcount_total": 20,
+    "generated_at": "2024-12-01"
+  },
+  "epics": [
+    {
+      "epic_id": "EP-001",
+      "name": "Sân khấu & Âm thanh",
+      "department": "Hậu cần",
+      "description": "Hạ tầng sân khấu, âm thanh, ánh sáng, tổng duyệt"
+    }
+  ],
   "tasks": [
     {
-      "title": "Truyền thông & Media",
-      "department": "Media",
-      "description": "Thiết kế poster, bài đăng mạng xã hội và livestream sự kiện."
-    },
+      "task_id": "T-001",
+      "epic_id": "EP-001",
+      "name": "Khảo sát địa điểm & đo đạc",
+      "depends_on": [],
+      "can_parallel": false,
+      "planned_start": "2024-12-01",
+      "planned_end": "2024-12-02",
+      "milestone": false
+    }
+  ],
+  "milestones": [
     {
-      "title": "Đối ngoại & Nhà tài trợ",
-      "department": "Đối ngoại",
-      "description": "Liên hệ doanh nghiệp, ký hợp đồng booth và tài trợ."
-    },
-    ...
-  ]
+      "name": "Final Rehearsal Complete",
+      "task_id": "T-015",
+      "date": "2024-12-24"
+    }
+  ],
+  "summary": {
+    "epic_count": 4,
+    "task_count": 20,
+    "critical_path_example": ["T-001", "T-002", "T-015"],
+    "feasibility": {
+      "status": "feasible",
+      "min_required_headcount": 15
+    }
+  }
 }
 ```
-## 5. Tầm quan trọng của các tài liệu (KB)
-Knowledge Base (KB) là phần cốt lõi của hệ thống RAG — đóng vai trò như “trí nhớ dài hạn” của AI.<br>
-🔹 Chức năng<br>
-- Lưu trữ các mẫu sự kiện chuẩn hóa (Career Fair, Workshop, Festival, v.v.)
 
-- Giúp mô hình hiểu rõ cấu trúc công việc, quy trình tổ chức và ban phụ trách
+---
 
-- Cung cấp ngữ cảnh thật để LLM sinh nội dung chính xác, tránh “ảo tưởng” (hallucination)
-<br>
-🔹 Cấu trúc 1 tài liệu KB mẫu(hiện tại)
+## 5. Các loại sự kiện được hỗ trợ
 
+| Event Type | Mô tả | Đặc điểm chính |
+|------------|-------|----------------|
+| `concert_opening` | Concert khai mạc | Sân khấu, âm thanh, nghệ sĩ, an ninh |
+| `food_festival` | Lễ hội ẩm thực | An toàn thực phẩm, vendor, layout |
+| `conference` | Hội nghị | Diễn giả, venue, đăng ký, sponsor |
+| `sport_competition` | Thi đấu thể thao | Vận động viên, sân bãi, trọng tài |
+| `career_fair` | Ngày hội việc làm | Doanh nghiệp, gian hàng, tuyển dụng |
+
+---
+
+## 6. Kiến trúc hệ thống
+
+### **RAG Pipeline**
+1. **Retrieval**: Tìm kiếm thông tin liên quan từ Knowledge Base dựa trên loại sự kiện
+2. **Augmentation**: Kết hợp thông tin từ KB với input của người dùng
+3. **Generation**: Sử dụng LLM để tạo ra WBS phù hợp
+
+### **WBS Generation Process**
+1. **Event Analysis**: Phân tích loại sự kiện và yêu cầu
+2. **Template Selection**: Chọn template phù hợp từ Knowledge Base
+3. **Epic Creation**: Tạo các Epic dựa trên departments
+4. **Task Generation**: Sinh ra các task chi tiết với dependencies
+5. **Scheduling**: Tính toán timeline và critical path
+6. **Validation**: Kiểm tra tính khả thi và tối ưu hóa
+
+---
+
+## 7. Knowledge Base
+
+Knowledge Base chứa các template sự kiện chuẩn với:
+- **Event Types**: Các loại sự kiện được hỗ trợ
+- **Context Tags**: Các đặc điểm ngữ cảnh (outdoor, sponsor, vip, etc.)
+- **Baseline Tasks**: Danh sách task mẫu cho từng loại sự kiện
+- **Milestones**: Các mốc quan trọng trong timeline
+
+### **Cấu trúc KB Entry:**
 ```json
 {
   "doc_id": "career_fair",
@@ -131,41 +208,84 @@ Knowledge Base (KB) là phần cốt lõi của hệ thống RAG — đóng vai 
   "context_tags": ["outdoor", "sponsor", "vip"],
   "baseline_tasks": [
     {
-      "name": "Truyền thông & Media",
-      "owner_department": "Media",
-      "notes": "Thiết kế poster, bài đăng mạng xã hội, livestream"
-    },
+      "name": "Lập kế hoạch truyền thông",
+      "owner_department": "Media/Marketing",
+      "description": "Xác định mục tiêu, kênh và timeline truyền thông",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": []
+    }
+  ],
+  "milestones": [
     {
-      "name": "Đối ngoại & Nhà tài trợ",
-      "owner_department": "Đối ngoại",
-      "notes": "Liên hệ doanh nghiệp, ký hợp đồng booth, tài trợ"
+      "name": "Vendor Contracts Signed",
+      "deadline": "T-30",
+      "description": "Tất cả hợp đồng đã ký"
     }
   ]
 }
 ```
 
-- `doc_id`: mã định danh duy nhất
+---
 
-- `event_type`: danh sách tên gọi / alias của loại sự kiện
+## 8. Cấu hình nâng cao
 
-- `context_tags`: đặc điểm ngữ cảnh (ngoài trời, có tài trợ, có VIP, học thuật, âm nhạc...)
+### **Environment Variables**
+```env
+# OpenAI Configuration
+OPENAI_API_KEY=your_api_key_here
+LLM_MODEL=gpt-4o-mini
+USE_LLM=1
 
-- `baseline_tasks`: danh sách task mẫu mà hệ thống dùng để truyền vào prompt LLM
-🔹 Hướng dẫn đóng góp KB
-<br>
-Các file trong thư mục kb/global/ là nguồn tri thức cốt lõi của hệ thống.
-Việc thay đổi cấu trúc của chúng có thể ảnh hưởng trực tiếp đến pipeline, retriever và quá trình sinh đầu việc (LLM generator).
+# Embedding Model
+EMBED_MODEL=all-MiniLM-L6-v2
 
-Những thay đổi an toàn :
-| Loại thay đổi                                                               | Ảnh hưởng       | Ghi chú                             |
-| --------------------------------------------------------------------------- | --------------- | ----------------------------------- |
-| Thêm trường mới ở mức ngoài cùng (`difficulty`, `created_by`, `version`, …) | Không ảnh hưởng | Có thể dùng để quản lý metadata     |
-| Thêm tag hoặc alias mới trong `context_tags` / `event_type`                 | Không ảnh hưởng | Giúp retriever tìm chính xác hơn    |
-| Bổ sung thêm phần tử vào `baseline_tasks`                                   | Không ảnh hưởng | Mô hình có thêm ví dụ để tham chiếu |
-Những thay đổi cần điều chỉnh code :
-- Nếu bạn đổi tên các trường trong phần `baseline_tasks`
-cần cập nhật lại đoạn format trong `llm_generator.py`.
+# ChromaDB Configuration
+CHROMA_DIR=./chroma_db
+CHROMA_COLLECTION=global_kb
 
-- Thay đổi cấu trúc phức tạp hơn thì cần thay đổi `retriever.py` để chuyển đổi dữ liệu trước khi nhúng (embedding).
-## 📍 Team phát triển:
-<h1>://</h1>
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8000
+```
+
+### **Custom Event Templates**
+Thêm template mới vào `kb/global/` với cấu trúc JSON chuẩn.
+
+---
+
+## 9. Phát triển và đóng góp
+
+### **Cấu trúc code chính:**
+- `modules/wbs/`: Logic tạo WBS
+- `services/`: RAG pipeline và LLM integration
+- `models/`: Pydantic schemas
+- `kb/global/`: Knowledge Base templates
+
+### **Thêm loại sự kiện mới:**
+1. Tạo file JSON template trong `kb/global/`
+2. Cập nhật `EventInput` schema trong `models/schemas.py`
+3. Thêm logic xử lý trong `services/llm_generator.py`
+4. Chạy `scripts/ingest_global_chroma.py` để cập nhật KB
+
+---
+
+## 10. Troubleshooting
+
+### **Lỗi thường gặp:**
+- **ChromaDB connection error**: Kiểm tra quyền ghi trong thư mục `chroma_db/`
+- **OpenAI API error**: Xác nhận API key và quota
+- **Import error**: Cài đặt đầy đủ dependencies từ `requirements.txt`
+
+### **Debug mode:**
+```bash
+export USE_LLM=0  # Tắt LLM, chỉ dùng template
+python -m uvicorn main:app --reload --log-level debug
+```
+
+---
+
+## 📞 Liên hệ
+
+Dự án được phát triển bởi team AI tại FPT University.
+Repository: https://github.com/nooktung/AI-gentask.git
