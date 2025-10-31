@@ -1,34 +1,59 @@
+"""
+Pipeline V3 - Hybrid RAG + LLM Task Generation
+Combines template reliability with LLM flexibility and RAG context awareness
+"""
+
 from typing import Dict, Any, List, Optional
-from datetime import datetime
-import pytz
+from datetime import datetime, timedelta
 import os
+import sys
 
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import V3 components
+from services.rag_engine import SimpleRAGEngine
+from services.llm_task_generator import LLMTaskGenerator
+from services.task_generator_v3 import (
+    calculate_available_workers,
+    distribute_workers_to_departments,
+    ACTION_TEMPLATES,
+    get_tier_multiplier
+)
+from services.risk_generator import generate_risks_by_department, generate_overall_risks
 from venue_classifier import classify_venue, VenueTier
-from task_generator_v2 import generate_tasks
-from risk_generator import generate_risks_by_department, generate_overall_risks
 
-# Optional LLM enhancement
-try:
-    from llm_generator_v2 import enhance_wbs_with_llm, generate_smart_suggestions
-    HAS_LLM = True
-except ImportError:
-    HAS_LLM = False
 
-USE_LLM_ENHANCEMENT = os.getenv("USE_LLM", "0") in ("1", "true", "True")
+def normalize_department(dept: str) -> str:
+    """Normalize department name to standard bucket (handles typos)"""
+    dept_lower = dept.lower().strip()
+    
+    if any(k in dept_lower for k in ["hậu cần", "hau can", "logistics", "vận hành"]):
+        return "hậu cần"
+    if any(k in dept_lower for k in ["media", "marketing", "maketing", "truyền thông", "truyen thong"]):
+        return "marketing"
+    if any(k in dept_lower for k in ["chuyên môn", "chuyen mon", "technical", "it", "kỹ thuật"]):
+        return "chuyên môn"
+    if any(k in dept_lower for k in ["tài chính", "tai chinh", "finance"]):
+        return "tài chính"
+    if any(k in dept_lower for k in ["đối ngoại", "doi ngoai", "external", "relations"]):
+        return "đối ngoại"
+    
+    return dept
 
 
 def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, Any]:
     """
     Generate epic with standardized title and description based on department
+    Normalizes department name to handle typos (e.g., "maketing" -> "marketing")
     """
     
-    # Mapping department to epic details
+    # Normalize department first (handle typos)
+    normalized_dept = normalize_department(department)
+    
+    # Mapping department to epic details (use normalized names)
     epic_mapping = {
         "hậu cần": {
-            "name": "Điều phối vận hành & hậu cần",
-            "description": "Quản lý hạ tầng, vật tư, vận chuyển, an ninh hiện trường, phối hợp nhà cung cấp"
-        },
-        "logistics": {
             "name": "Điều phối vận hành & hậu cần",
             "description": "Quản lý hạ tầng, vật tư, vận chuyển, an ninh hiện trường, phối hợp nhà cung cấp"
         },
@@ -36,37 +61,23 @@ def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, An
             "name": "Triển khai truyền thông & marketing",
             "description": "Key Visual, ấn phẩm, kế hoạch truyền thông đa kênh, triển khai social và quảng cáo"
         },
-        "media": {
-            "name": "Triển khai truyền thông & marketing",
-            "description": "Key Visual, ấn phẩm, kế hoạch truyền thông đa kênh, triển khai social và quảng cáo"
-        },
-        "đối ngoại": {
-            "name": "Làm việc với nghệ sĩ & đối tác",
-            "description": "Liên hệ, đàm phán, hợp đồng nghệ sĩ/đối tác, quản lý rider và lịch trình"
+        "chuyên môn": {
+            "name": "Quản lý chuyên môn & kỹ thuật",
+            "description": "Hệ thống IT, âm thanh, ánh sáng, streaming, technical support"
         },
         "tài chính": {
             "name": "Quản lý tài chính sự kiện",
             "description": "Ngân sách, hợp đồng mua sắm/dịch vụ, thanh toán, quyết toán, kiểm soát chi phí"
         },
-        "finance": {
-            "name": "Quản lý tài chính sự kiện",
-            "description": "Ngân sách, hợp đồng mua sắm/dịch vụ, thanh toán, quyết toán, kiểm soát chi phí"
-        },
-        "chuyên môn": {
-            "name": "Quản lý chuyên môn & kỹ thuật",
-            "description": "Hệ thống IT, âm thanh, ánh sáng, streaming, technical support"
-        },
-        "technical": {
-            "name": "Quản lý chuyên môn & kỹ thuật",
-            "description": "Hệ thống IT, âm thanh, ánh sáng, streaming, technical support"
+        "đối ngoại": {
+            "name": "Làm việc với nghệ sĩ & đối tác",
+            "description": "Liên hệ, đàm phán, hợp đồng nghệ sĩ/đối tác, quản lý rider và lịch trình"
         },
     }
     
-    dept_lower = department.lower().strip()
-    
-    # Get epic details or use default
+    # Get epic details using normalized department
     epic_details = epic_mapping.get(
-        dept_lower,
+        normalized_dept,
         {
             "name": f"Điều phối {department}",
             "description": f"Quản lý và điều phối công việc cho ban {department}"
@@ -76,96 +87,215 @@ def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, An
     return {
         "epic_id": epic_id,
         "name": epic_details["name"],
-        "department": department,
+        "department": department,  # Keep original for display
         "description": epic_details["description"],
-        "start-date": "",  # Will be calculated from tasks
-        "end-date": "",    # Will be calculated from tasks
+        "start-date": "",
+        "end-date": "",
     }
 
 
-def normalize_department(dept: str) -> str:
-    """Normalize department name to standard bucket"""
-    dept_lower = dept.lower().strip()
-    
-    if any(k in dept_lower for k in ["hậu cần", "hau can", "logistics", "vận hành"]):
-        return "hậu cần"
-    if any(k in dept_lower for k in ["media", "marketing", "truyền thông", "truyen thong"]):
-        return "marketing"
-    if any(k in dept_lower for k in ["chuyên môn", "chuyen mon", "technical", "it", "kỹ thuật"]):
-        return "chuyên môn"
-    if any(k in dept_lower for k in ["tài chính", "tai chinh", "finance"]):
-        return "tài chính"
-    
-    return dept  # Return original if can't normalize
-
-
-def run_pipeline(event_input: Dict[str, Any], retrieved_docs: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def run_pipeline_with_rag(
+    event_input: Dict[str, Any],
+    use_llm: bool = True,
+    llm_mode: str = "enhance"  # "enhance" or "generate"
+) -> Dict[str, Any]:
     """
-    Main WBS generation pipeline
+    Main WBS generation pipeline with RAG + LLM
     
     Args:
-        event_input: Dict containing event details
-        retrieved_docs: Optional retrieved documents for LLM context
+        event_input: Event details dict
+        use_llm: Whether to use LLM (set False to fallback to pure templates)
+        llm_mode: "enhance" (lightweight) or "generate" (full generation)
         
     Returns:
-        Dict with extracted_info, epics_task, tasks, departments structure
+        Complete WBS with extracted_info, epics_task, tasks, departments, risks
     """
     
     # Extract input data
-    event_name = event_input.get("event_name", "")
-    event_type = event_input.get("event_type", "")
+    event_name = event_input.get("event_name", "Sự kiện")
+    event_type = event_input.get("event_type", "conference")
     event_date = event_input.get("event_date", "")
-    venue = event_input.get("venue", "")
-    headcount_total = int(event_input.get("headcount_total", 0))
+    venue = event_input.get("venue", "FPT University")
+    headcount_total = event_input.get("headcount_total", 50)
     departments = event_input.get("departments", [])
+    special_requirements = event_input.get("special_requirements", [])
     
-    # Validate event_date format
+    # Validate event_date
     try:
         datetime.strptime(event_date, "%Y-%m-%d")
     except:
-        # Use today's date if invalid
-        event_date = datetime.now(pytz.timezone('Asia/Bangkok')).strftime('%Y-%m-%d')
+        event_date = datetime.now().strftime("%Y-%m-%d")
     
-    # Classify venue tier
+    # Classify venue
     venue_tier = classify_venue(venue)
     
-    # Generate epics (one per department)
+    # Initialize RAG engine
+    rag = SimpleRAGEngine()
+    
+    # Retrieve similar events
+    similar_events = rag.retrieve_similar_events(
+        event_type=event_type,
+        venue_tier=venue_tier,
+        headcount_total=headcount_total,
+        departments=departments,
+        top_k=3
+    )
+    
+    # Extract best practices
+    best_practices = rag.extract_best_practices(similar_events)
+    
+    # Get venue-specific requirements
+    venue_reqs = rag.get_venue_specific_requirements(venue_tier)
+    
+    # Combine special requirements
+    all_special_reqs = list(set(special_requirements + best_practices.get("special_requirements", [])))
+    
+    # Build RAG context
+    rag_context = {
+        "key_tasks": best_practices.get("key_tasks", []),
+        "lessons_learned": best_practices.get("lessons_learned", []),
+        "special_requirements": all_special_reqs,
+        "venue_specific_requirements": venue_reqs,
+        "similar_events": [e["event"]["event_name"] for e in similar_events]
+    }
+    
+    # Event context for LLM
+    event_context = {
+        "event_type": event_type,
+        "event_name": event_name,
+        "venue": venue,
+        "venue_tier": venue_tier,
+        "headcount_total": headcount_total,
+        "event_date": event_date,
+        "special_requirements": all_special_reqs
+    }
+    
+    # Generate epics
+    normalized_depts = [normalize_department(d) for d in departments]
+    unique_depts = list(dict.fromkeys(normalized_depts))  # Remove duplicates, keep order
+    
     epics = []
-    for idx, dept in enumerate(departments, start=1):
-        epic = generate_epic_from_department(dept, f"EP-{idx:03d}")
+    for i, dept in enumerate(departments):
+        epic = generate_epic_from_department(dept, f"EP-{i+1:03d}")
         epics.append(epic)
     
-    # Generate tasks (NO DUPLICATION, synced with action templates)
-    tasks = generate_tasks(epics, event_date, venue_tier, headcount_total)
+    # Calculate worker distribution
+    num_departments = len(epics)
+    available_workers = calculate_available_workers(headcount_total, num_departments)
+    worker_distribution = distribute_workers_to_departments(
+        available_workers,
+        [e["department"] for e in epics],
+        venue_tier
+    )
     
-    # Optional: LLM enhancement for intelligent suggestions
-    llm_suggestions = None
-    smart_tips = None
-    if USE_LLM_ENHANCEMENT and HAS_LLM and retrieved_docs:
-        try:
-            llm_suggestions = enhance_wbs_with_llm(
-                {**event_input, "venue_tier": venue_tier},
-                epics,
-                tasks,
-                retrieved_docs
-            )
-            smart_tips = generate_smart_suggestions(
-                {**event_input, "venue_tier": venue_tier},
-                retrieved_docs
-            )
-        except Exception as e:
-            print(f"LLM enhancement error: {e}")
+    # Initialize LLM generator (optional)
+    llm_gen = None
+    if use_llm:
+        llm_gen = LLMTaskGenerator()
+        if not llm_gen.client:
+            print("⚠️ LLM not available, falling back to templates")
+            use_llm = False
     
-    # Calculate epic start/end dates from tasks
+    # Generate tasks
+    tasks = []
+    task_counter = 1
+    
+    # Parse event date
+    try:
+        event_dt = datetime.strptime(event_date, "%Y-%m-%d")
+    except:
+        event_dt = datetime.now() + timedelta(days=30)
+    
+    for epic in epics:
+        epic_id = epic["epic_id"]
+        epic_name = epic["name"]
+        department = epic["department"]
+        normalized_dept = normalize_department(department)
+        
+        # Get number of workers
+        num_workers = worker_distribution.get(department, 1)
+        
+        # Get base templates
+        base_templates = ACTION_TEMPLATES.get(epic_name, [])
+        
+        # Calculate target task count
+        target_count = min(len(base_templates), max(3, num_workers * 2))
+        
+        # Select base templates
+        base_tasks = base_templates[:target_count]
+        
+        # LLM enhancement or generation
+        if use_llm and llm_gen:
+            if llm_mode == "generate":
+                # Full LLM generation with RAG context
+                generated_tasks = llm_gen.generate_tasks_with_rag(
+                    epic_name=epic_name,
+                    department=department,
+                    event_context=event_context,
+                    rag_context=rag_context,
+                    num_workers=num_workers,
+                    base_tasks=base_tasks
+                )
+                
+                if generated_tasks:
+                    base_tasks = generated_tasks
+            
+            elif llm_mode == "enhance":
+                # Lightweight enhancement (just make names specific)
+                base_tasks = llm_gen.enhance_template_tasks(base_tasks, event_context)
+        
+        # Convert to final task format
+        epic_task_map: Dict[str, str] = {}
+        
+        for action in base_tasks:
+            task_name = action["name"]
+            task_id = f"T-{task_counter:03d}"
+            task_counter += 1
+            
+            # Calculate dates
+            duration = action.get("duration_days", 2)
+            adjusted_duration = max(1, int(duration * get_tier_multiplier(venue_tier)))
+            
+            priority = action.get("priority", "medium")
+            days_before = _calculate_days_before_event(priority, adjusted_duration)
+            
+            deadline_dt = event_dt - timedelta(days=days_before)
+            start_dt = deadline_dt - timedelta(days=adjusted_duration - 1)
+            
+            # Resolve dependencies
+            depends_on_names = action.get("depends_on", [])
+            depends_on_ids = [epic_task_map.get(name, "") for name in depends_on_names]
+            depends_on_ids = [tid for tid in depends_on_ids if tid]
+            
+            # Create task
+            task = {
+                "task_id": task_id,
+                "epic_id": epic_id,
+                "name": task_name,
+                "category": epic_name,
+                "description": action.get("description", ""),
+                "priority": priority,
+                "start-date": start_dt.strftime("%Y-%m-%d"),
+                "deadline": deadline_dt.strftime("%Y-%m-%d"),
+                "assign": "",  # To be assigned by HOD
+                "depends_on": depends_on_ids,
+                "complexity": _priority_to_complexity(priority),
+            }
+            
+            tasks.append(task)
+            epic_task_map[task_name] = task_id
+    
+    # Update epic dates based on tasks
     for epic in epics:
         epic_tasks = [t for t in tasks if t["epic_id"] == epic["epic_id"]]
         if epic_tasks:
-            start_dates = [t["start-date"] for t in epic_tasks if t.get("start-date")]
-            end_dates = [t["deadline"] for t in epic_tasks if t.get("deadline")]
-            epic["start-date"] = min(start_dates) if start_dates else ""
-            epic["end-date"] = max(end_dates) if end_dates else ""
+            start_dates = [datetime.strptime(t["start-date"], "%Y-%m-%d") for t in epic_tasks]
+            end_dates = [datetime.strptime(t["deadline"], "%Y-%m-%d") for t in epic_tasks]
+            
+            epic["start-date"] = min(start_dates).strftime("%Y-%m-%d")
+            epic["end-date"] = max(end_dates).strftime("%Y-%m-%d")
     
-    # Group tasks by department for department output
+    # Group tasks by department (normalized)
     departments_output: Dict[str, List[Dict[str, Any]]] = {
         "hậu cần": [],
         "marketing": [],
@@ -173,7 +303,11 @@ def run_pipeline(event_input: Dict[str, Any], retrieved_docs: Optional[List[Dict
         "tài chính": [],
     }
     
-    epic_dept_map = {e["epic_id"]: normalize_department(e["department"]) for e in epics}
+    # Map epic_id to normalized department
+    epic_dept_map = {}
+    for e in epics:
+        normalized = normalize_department(e["department"])
+        epic_dept_map[e["epic_id"]] = normalized
     
     for task in tasks:
         dept_bucket = epic_dept_map.get(task["epic_id"], "hậu cần")
@@ -189,18 +323,25 @@ def run_pipeline(event_input: Dict[str, Any], retrieved_docs: Optional[List[Dict
         
         departments_output[dept_bucket].append(dept_task)
     
-    # Generate risks (by department + overall, scaled by venue tier)
-    dept_risks = generate_risks_by_department(departments, venue_tier, event_type)
-    overall_risks = generate_overall_risks(venue_tier, event_type)
+    # Generate risks
+    risks_by_dept = generate_risks_by_department(
+        departments=unique_depts,
+        venue_tier=venue_tier,
+        event_type=event_type
+    )
     
-    # Build risks structure
+    risks_overall = generate_overall_risks(
+        venue_tier=venue_tier,
+        event_type=event_type
+    )
+    
     risks = {
-        "by_department": dept_risks,
-        "overall": overall_risks,
+        "by_department": risks_by_dept,
+        "overall": risks_overall
     }
     
-    # Build final output
-    output = {
+    # Prepare result
+    result = {
         "extracted_info": {
             "event_name": event_name,
             "event_type": event_type,
@@ -208,52 +349,91 @@ def run_pipeline(event_input: Dict[str, Any], retrieved_docs: Optional[List[Dict
             "venue": venue,
             "headcount_total": headcount_total,
             "departments": departments,
-            "venue_tier": venue_tier,  # Added for debugging
+            "venue_tier": venue_tier,
+            "available_workers": available_workers,
+            "worker_distribution": worker_distribution,
         },
         "epics_task": epics,
         "tasks": tasks,
         "departments": departments_output,
-        "risks": risks,  # Added risks output
+        "risks": risks,
+        "rag_insights": {
+            "similar_events": [e["event"]["event_name"] for e in similar_events],
+            "key_learnings": best_practices.get("lessons_learned", [])[:5],
+            "special_requirements": all_special_reqs,
+        }
     }
     
-    # Optional: Add LLM suggestions if available
-    if llm_suggestions:
-        output["llm_suggestions"] = llm_suggestions
-    if smart_tips:
-        output["smart_tips"] = smart_tips
+    # Add cost info if LLM was used
+    if use_llm and llm_gen:
+        result["llm_cost"] = llm_gen.get_total_cost()
     
-    return output
+    return result
+
+
+def _calculate_days_before_event(priority: str, duration: int) -> int:
+    """Calculate how many days before event this task should be completed"""
+    base_days = {
+        "critical": 1,
+        "high": 5,
+        "medium": 10,
+        "low": 15,
+    }
+    return base_days.get(priority, 7) + duration
+
+
+def _priority_to_complexity(priority: str) -> str:
+    """Map priority to complexity level"""
+    mapping = {
+        "critical": "critical",
+        "high": "high",
+        "medium": "medium",
+        "low": "low",
+    }
+    return mapping.get(priority, "medium")
+
+
+# Backward compatibility alias
+def run_pipeline(event_input: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Backward compatible wrapper for old run_pipeline calls
+    """
+    return run_pipeline_with_rag(event_input, use_llm=True, llm_mode="enhance")
 
 
 # Example usage
 if __name__ == "__main__":
-    test_input = {
-        "event_name": "Concert Khai Giảng 2025",
+    print("="*80)
+    print("PIPELINE V3 - HYBRID RAG + LLM")
+    print("="*80)
+    
+    # Test event
+    event_input = {
+        "event_name": "FPT Concert Khai Giảng 2025",
         "event_type": "concert_opening",
-        "event_date": "2024-12-25",
-        "venue": "đường 30m",
-        "headcount_total": 50,
-        "departments": ["Hậu cần", "Marketing", "Tài chính"],
+        "event_date": "2025-12-29",
+        "venue": "Đường 30m FPT",
+        "headcount_total": 100,
+        "departments": ["hậu cần", "marketing", "chuyên môn", "tài chính"],
+        "special_requirements": []
     }
     
-    result = run_pipeline(test_input)
+    print("\n📝 Event Input:")
+    for key, value in event_input.items():
+        print(f"  {key}: {value}")
     
-    print("=== EXTRACTED INFO ===")
-    print(result["extracted_info"])
+    print("\n" + "="*80)
+    print("Running Pipeline...")
+    print("="*80)
     
-    print("\n=== EPICS ===")
-    for epic in result["epics_task"]:
-        print(f"{epic['epic_id']}: {epic['name']} ({epic['department']})")
+    result = run_pipeline_with_rag(event_input, use_llm=False)
     
-    print(f"\n=== TASKS ({len(result['tasks'])} total) ===")
-    for task in result["tasks"][:5]:  # Show first 5
-        print(f"{task['task_id']} | {task['name']:40} | {task['priority']:8} | {task['start-date']} -> {task['deadline']}")
-    print("...")
+    print(f"\n✅ Generated:")
+    print(f"  Epics: {len(result['epics_task'])}")
+    print(f"  Tasks: {len(result['tasks'])}")
+    print(f"  Available workers: {result['extracted_info']['available_workers']}")
+    print(f"\n📚 RAG Insights:")
+    print(f"  Similar events: {', '.join(result['rag_insights']['similar_events'])}")
+    print(f"  Key learnings: {len(result['rag_insights']['key_learnings'])}")
     
-    print("\n=== DEPARTMENTS ===")
-    for dept, tasks in result["departments"].items():
-        print(f"{dept}: {len(tasks)} tasks")
-    
-    print("\n=== RISKS ===")
-    print(f"By department: {len(result['risks']['by_department'])} departments")
-    print(f"Overall: {len(result['risks']['overall'])} risks")
+    print("\n✅ PIPELINE V3 READY!")
