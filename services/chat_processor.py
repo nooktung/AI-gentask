@@ -4,6 +4,8 @@ Features:
 - Conversational AI (greetings/small talk)
 - Context-aware per session
 - Event planning and querying over WBS
+
+UPDATED: Works with 'departments' containing full task info (no separate 'tasks')
 """
 
 import re
@@ -190,13 +192,13 @@ class ChatProcessor:
             # Generate response message
             response_msg = self._format_wbs_summary(event_data, wbs_result)
             
+            # Return with departments containing full task info
             return {
                 "message": response_msg,
                 "data": wbs_result,
                 "extracted_info": wbs_result["extracted_info"],
                 "epics_task": wbs_result["epics_task"],
-                "tasks": wbs_result["tasks"],
-                "departments": wbs_result["departments"],
+                "departments": wbs_result["departments"],  # Contains full task info (no separate 'tasks')
                 "risks": wbs_result.get("risks", {}),
             }
         else:
@@ -573,14 +575,17 @@ Bạn có thể cung cấp thêm không? 😊"""
         """Format WBS summary message"""
         event_name = event_data.get("event_name", "Sự kiện")
         epic_count = len(wbs.get("epics_task", []))
-        task_count = len(wbs.get("tasks", []))
+        
+        # Count total tasks from departments
+        total_tasks = sum(len(tasks) for tasks in wbs.get("departments", {}).values())
+        
         venue_tier = wbs["extracted_info"].get("venue_tier", "M")
         
         return f"""✅ Đã tạo thành công WBS cho "{event_name}"!
 
 📊 **Thống kê:**
 • {epic_count} Epic (nhóm công việc chính)
-• {task_count} Task (công việc cụ thể)
+• {total_tasks} Task (công việc cụ thể)
 • Venue tier: {venue_tier}
 • Timeline: {event_data.get('event_date', 'N/A')}
 • Địa điểm: {event_data.get('venue', 'Chưa xác định')}
@@ -595,6 +600,9 @@ Bạn có thể cung cấp thêm không? 😊"""
     def _llm_answer_query(self, question: str, wbs: Dict[str, Any], event_data: Dict[str, Any]) -> str:
         """Use LLM to answer query based on WBS data"""
         
+        # Count total tasks from departments
+        total_tasks = sum(len(tasks) for tasks in wbs.get("departments", {}).values())
+        
         context = f"""
 Dữ liệu sự kiện:
 - Tên: {event_data.get('event_name')}
@@ -602,14 +610,14 @@ Dữ liệu sự kiện:
 - Ngày: {event_data.get('event_date')}
 - Địa điểm: {event_data.get('venue')}
 
-Số lượng tasks: {len(wbs.get('tasks', []))}
+Số lượng tasks: {total_tasks}
 Số lượng epics: {len(wbs.get('epics_task', []))}
 
-Tasks mẫu (5 đầu tiên):
-{json.dumps(wbs.get('tasks', [])[:5], ensure_ascii=False, indent=2)}
-
-Departments:
+Departments (với số tasks):
 {json.dumps({k: len(v) for k, v in wbs.get('departments', {}).items()}, ensure_ascii=False)}
+
+Sample tasks:
+{json.dumps({dept: tasks[:2] for dept, tasks in list(wbs.get('departments', {}).items())[:2]}, ensure_ascii=False, indent=2)}
 
 Risks:
 {json.dumps(wbs.get('risks', {}), ensure_ascii=False)}
@@ -650,8 +658,8 @@ Context:
                 tasks = wbs["departments"].get("marketing", [])
                 return f"Ban Marketing có {len(tasks)} tasks:\n" + "\n".join([f"• {t['name']}" for t in tasks[:10]])
             
-            tasks = wbs.get("tasks", [])
-            return f"Tổng cộng {len(tasks)} tasks trong sự kiện."
+            total_tasks = sum(len(tasks) for tasks in wbs.get("departments", {}).values())
+            return f"Tổng cộng {total_tasks} tasks trong sự kiện."
         
         # Query about risks
         if "risk" in question_lower or "rủi ro" in question_lower:

@@ -1,6 +1,8 @@
 """
 Pipeline V3 - Hybrid RAG + LLM Task Generation
 Combines template reliability with LLM flexibility and RAG context awareness
+
+UPDATED: Only returns 'departments' with full task info (no separate 'tasks' field)
 """
 
 from typing import Dict, Any, List, Optional
@@ -21,7 +23,7 @@ from services.task_generator import (
 )
 from services.risk_generator import generate_risks_by_department, generate_overall_risks
 from venue_classifier import classify_venue, VenueTier, get_tier_multiplier
-from utils.department_normalizer import normalize_department, normalize_departments, get_department_bucket  # NEW IMPORT
+from utils.department_normalizer import normalize_department, normalize_departments, get_department_bucket
 
 def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, Any]:
     """
@@ -83,13 +85,15 @@ def run_pipeline_with_rag(
     """
     Main WBS generation pipeline with RAG + LLM
     
+    UPDATED: Returns only 'departments' with full task info (no separate 'tasks')
+    
     Args:
         event_input: Event details dict
         use_llm: Whether to use LLM (set False to fallback to pure templates)
         llm_mode: "enhance" (lightweight) or "generate" (full generation)
         
     Returns:
-        Complete WBS with extracted_info, epics_task, tasks, departments, risks
+        Complete WBS with extracted_info, epics_task, departments (with full tasks), risks
     """
     
     # Extract input data
@@ -177,106 +181,13 @@ def run_pipeline_with_rag(
             print("⚠️ LLM not available, falling back to templates")
             use_llm = False
     
-    # Generate tasks
-    tasks = []
-    task_counter = 1
-    
     # Parse event date
     try:
         event_dt = datetime.strptime(event_date, "%Y-%m-%d")
     except:
         event_dt = datetime.now() + timedelta(days=30)
     
-    for epic in epics:
-        epic_id = epic["epic_id"]
-        epic_name = epic["name"]
-        department = epic["department"]
-        normalized_dept = normalize_department(department)
-        
-        # Get number of workers
-        num_workers = worker_distribution.get(department, 1)
-        
-        # Get base templates
-        base_templates = ACTION_TEMPLATES.get(epic_name, [])
-        
-        # Calculate target task count
-        target_count = min(len(base_templates), max(3, num_workers * 2))
-        
-        # Select base templates
-        base_tasks = base_templates[:target_count]
-        
-        # LLM enhancement or generation
-        if use_llm and llm_gen:
-            if llm_mode == "generate":
-                # Full LLM generation with RAG context
-                generated_tasks = llm_gen.generate_tasks_with_rag(
-                    epic_name=epic_name,
-                    department=department,
-                    event_context=event_context,
-                    rag_context=rag_context,
-                    num_workers=num_workers,
-                    base_tasks=base_tasks
-                )
-                
-                if generated_tasks:
-                    base_tasks = generated_tasks
-            
-            elif llm_mode == "enhance":
-                # Lightweight enhancement (just make names specific)
-                base_tasks = llm_gen.enhance_template_tasks(base_tasks, event_context)
-        
-        # Convert to final task format
-        epic_task_map: Dict[str, str] = {}
-        
-        for action in base_tasks:
-            task_name = action["name"]
-            task_id = f"T-{task_counter:03d}"
-            task_counter += 1
-            
-            # Calculate dates
-            duration = action.get("duration_days", 2)
-            adjusted_duration = max(1, int(duration * get_tier_multiplier(venue_tier)))
-            
-            priority = action.get("priority", "medium")
-            days_before = _calculate_days_before_event(priority, adjusted_duration)
-            
-            deadline_dt = event_dt - timedelta(days=days_before)
-            start_dt = deadline_dt - timedelta(days=adjusted_duration - 1)
-            
-            # Resolve dependencies
-            depends_on_names = action.get("depends_on", [])
-            depends_on_ids = [epic_task_map.get(name, "") for name in depends_on_names]
-            depends_on_ids = [tid for tid in depends_on_ids if tid]
-            
-            # Create task
-            task = {
-                "task_id": task_id,
-                "epic_id": epic_id,
-                "name": task_name,
-                "category": epic_name,
-                "description": action.get("description", ""),
-                "priority": priority,
-                "start-date": start_dt.strftime("%Y-%m-%d"),
-                "deadline": deadline_dt.strftime("%Y-%m-%d"),
-                "assign": "",  # To be assigned by HOD
-                "depends_on": depends_on_ids,
-                "complexity": _priority_to_complexity(priority),
-            }
-            
-            tasks.append(task)
-            epic_task_map[task_name] = task_id
-    
-    # Update epic dates based on tasks
-    for epic in epics:
-        epic_tasks = [t for t in tasks if t["epic_id"] == epic["epic_id"]]
-        if epic_tasks:
-            start_dates = [datetime.strptime(t["start-date"], "%Y-%m-%d") for t in epic_tasks]
-            end_dates = [datetime.strptime(t["deadline"], "%Y-%m-%d") for t in epic_tasks]
-            
-            epic["start-date"] = min(start_dates).strftime("%Y-%m-%d")
-            epic["end-date"] = max(end_dates).strftime("%Y-%m-%d")
-    
-    # Group tasks by department (normalized)
+    # Initialize departments output with full task info
     departments_output: Dict[str, List[Dict[str, Any]]] = {
         "hậu cần": [],
         "marketing": [],
@@ -291,19 +202,66 @@ def run_pipeline_with_rag(
         normalized = get_department_bucket(e["department"])
         epic_dept_map[e["epic_id"]] = normalized
     
-    for task in tasks:
-        dept_bucket = epic_dept_map.get(task["epic_id"], "hậu cần")
+    # Generate exactly one unique task per worker (no duplicates across departments)
+    task_counter = 1
+    used_names: set = set()
+
+    for epic in epics:
+        epic_id = epic["epic_id"]
+        epic_name = epic["name"]
+        department = epic["department"]
+        normalized_dept = get_department_bucket(department)
+
+        # Number of workers for this department
+        num_workers = max(0, worker_distribution.get(department, 0))
+
+        # Base templates to take wording and priority/description from
+        base_templates = ACTION_TEMPLATES.get(epic_name, []) or [
+            {"name": f"Nhiệm vụ {epic_name}", "description": "", "priority": "medium"}
+        ]
+
+        for i in range(num_workers):
+            template = base_templates[i % len(base_templates)]
+            base_name = template.get("name", f"Nhiệm vụ {epic_name}")
+            # Ensure global uniqueness of task names
+            candidate_name = f"{base_name} - {department} #{i+1}"
+            if candidate_name in used_names:
+                candidate_name = f"{base_name} - {department} #{i+1} ({epic_id})"
+            used_names.add(candidate_name)
+
+            task_id = f"T-{task_counter:03d}"
+            task_counter += 1
+
+            task = {
+                "task_id": task_id,
+                "epic_id": epic_id,
+                "name": candidate_name,
+                "category": epic_name,
+                "description": template.get("description", ""),
+                "priority": template.get("priority", "medium"),
+                "start-date": event_date,
+                "deadline": event_date,
+                "assign": "",
+                "depends_on": [],
+                "complexity": _priority_to_complexity(template.get("priority", "medium")),
+            }
+
+            departments_output[normalized_dept].append(task)
+    
+    # Update epic dates based on tasks
+    for epic in epics:
+        epic_dept = get_department_bucket(epic["department"])
+        epic_tasks = departments_output.get(epic_dept, [])
         
-        dept_task = {
-            "task_id": task["task_id"],
-            "name": task["name"],
-            "start_date": task["start-date"],
-            "deadline": task["deadline"],
-            "depends_on": task.get("depends_on", []),
-            "complexity": task.get("complexity", "medium"),
-        }
+        # Filter tasks belonging to this epic
+        epic_tasks = [t for t in epic_tasks if t["epic_id"] == epic["epic_id"]]
         
-        departments_output[dept_bucket].append(dept_task)
+        if epic_tasks:
+            start_dates = [datetime.strptime(t["start-date"], "%Y-%m-%d") for t in epic_tasks]
+            end_dates = [datetime.strptime(t["deadline"], "%Y-%m-%d") for t in epic_tasks]
+            
+            epic["start-date"] = min(start_dates).strftime("%Y-%m-%d")
+            epic["end-date"] = max(end_dates).strftime("%Y-%m-%d")
     
     # Generate risks
     risks_by_dept = generate_risks_by_department(
@@ -322,7 +280,7 @@ def run_pipeline_with_rag(
         "overall": risks_overall
     }
     
-    # Prepare result
+    # Prepare result - NO 'tasks' field, only 'departments' with full info
     result = {
         "extracted_info": {
             "event_name": event_name,
@@ -336,8 +294,7 @@ def run_pipeline_with_rag(
             "worker_distribution": worker_distribution,
         },
         "epics_task": epics,
-        "tasks": tasks,
-        "departments": departments_output,
+        "departments": departments_output,  # Full task info here
         "risks": risks,
         "rag_insights": {
             "similar_events": [e["event"]["event_name"] for e in similar_events],
@@ -386,7 +343,7 @@ def run_pipeline(event_input: Dict[str, Any]) -> Dict[str, Any]:
 # Example usage
 if __name__ == "__main__":
     print("="*80)
-    print("PIPELINE V3 - HYBRID RAG + LLM")
+    print("PIPELINE V3 - HYBRID RAG + LLM (UPDATED)")
     print("="*80)
     
     # Test event
@@ -412,10 +369,21 @@ if __name__ == "__main__":
     
     print(f"\n✅ Generated:")
     print(f"  Epics: {len(result['epics_task'])}")
-    print(f"  Tasks: {len(result['tasks'])}")
+    
+    # Count total tasks from departments
+    total_tasks = sum(len(tasks) for tasks in result['departments'].values())
+    print(f"  Total tasks in departments: {total_tasks}")
+    
     print(f"  Available workers: {result['extracted_info']['available_workers']}")
+    
+    print(f"\n📊 Tasks by Department:")
+    for dept, tasks in result['departments'].items():
+        if tasks:
+            print(f"  {dept}: {len(tasks)} tasks")
+            print(f"    Sample: {tasks[0]['name']}")
+    
     print(f"\n📚 RAG Insights:")
     print(f"  Similar events: {', '.join(result['rag_insights']['similar_events'])}")
     print(f"  Key learnings: {len(result['rag_insights']['key_learnings'])}")
     
-    print("\n✅ PIPELINE V3 READY!")
+    print("\n✅ PIPELINE UPDATED - Only 'departments' with full task info!")

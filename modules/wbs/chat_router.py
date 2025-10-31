@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -23,11 +22,13 @@ async def send_message(chat_input: ChatInput) -> Dict[str, Any]:
     """
     Send message to AI assistant
     
+    UPDATED: Returns 'departments' with full task info (no separate 'tasks' field)
+    
     Returns format with clear state indication:
     - state: "conversation" | "planning_partial" | "planning_complete"
     - message: AI response text
     - extracted_info: Extracted event info (if state != "conversation")
-    - wbs: Full WBS data (only if state == "planning_complete")
+    - wbs: Full WBS data with 'departments' containing full tasks (only if state == "planning_complete")
     """
     try:
         # Generate session_id if not provided
@@ -42,7 +43,8 @@ async def send_message(chat_input: ChatInput) -> Dict[str, Any]:
         # Determine state based on result content (backward compatible)
         state = result.get("state")
         if not state:
-            has_wbs = all(k in result for k in ["epics_task", "tasks", "departments"]) or "wbs" in result
+            # Check for full WBS with departments containing tasks
+            has_wbs = "departments" in result and any(result.get("departments", {}).values())
             if has_wbs:
                 state = "planning_complete"
             elif "extracted_info" in result:
@@ -64,11 +66,10 @@ async def send_message(chat_input: ChatInput) -> Dict[str, Any]:
         # Add full WBS data ONLY when planning is complete
         if state == "planning_complete":
             # Ensure all WBS components are present
-            if all(key in result for key in ["epics_task", "tasks", "departments", "risks"]):
+            if all(key in result for key in ["epics_task", "departments", "risks"]):
                 response["wbs"] = {
                     "epics_task": result["epics_task"],
-                    "tasks": result["tasks"],
-                    "departments": result["departments"],
+                    "departments": result["departments"],  # Contains full task info
                     "risks": result["risks"],
                 }
                 
@@ -128,13 +129,17 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "version": "1.0",
+        "version": "2.0",
         "features": [
             "conversational_ai",
             "context_switching",
             "rag_queries",
             "venue_tier_scaling",
             "risk_assessment",
-            "state_management"
-        ]
+            "state_management",
+            "unified_departments_format"  # NEW: departments contain full task info
+        ],
+        "response_format": {
+            "note": "No separate 'tasks' field - all task info is in 'departments'"
+        }
     }
