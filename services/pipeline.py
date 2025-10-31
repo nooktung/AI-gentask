@@ -22,34 +22,16 @@ from services.task_generator_v3 import (
 )
 from services.risk_generator import generate_risks_by_department, generate_overall_risks
 from venue_classifier import classify_venue, VenueTier
-
-
-def normalize_department(dept: str) -> str:
-    """Normalize department name to standard bucket (handles typos)"""
-    dept_lower = dept.lower().strip()
-    
-    if any(k in dept_lower for k in ["hậu cần", "hau can", "logistics", "vận hành"]):
-        return "hậu cần"
-    if any(k in dept_lower for k in ["media", "marketing", "maketing", "truyền thông", "truyen thong"]):
-        return "marketing"
-    if any(k in dept_lower for k in ["chuyên môn", "chuyen mon", "technical", "it", "kỹ thuật"]):
-        return "chuyên môn"
-    if any(k in dept_lower for k in ["tài chính", "tai chinh", "finance"]):
-        return "tài chính"
-    if any(k in dept_lower for k in ["đối ngoại", "doi ngoai", "external", "relations"]):
-        return "đối ngoại"
-    
-    return dept
-
+from utils.department_normalizer import normalize_department, normalize_departments, get_department_bucket  # NEW IMPORT
 
 def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, Any]:
     """
     Generate epic with standardized title and description based on department
-    Normalizes department name to handle typos (e.g., "maketing" -> "marketing")
+    Uses centralized department normalizer
     """
     
-    # Normalize department first (handle typos)
-    normalized_dept = normalize_department(department)
+    # Use centralized normalizer
+    normalized_dept = get_department_bucket(department)
     
     # Mapping department to epic details (use normalized names)
     epic_mapping = {
@@ -87,7 +69,7 @@ def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, An
     return {
         "epic_id": epic_id,
         "name": epic_details["name"],
-        "department": department,  # Keep original for display
+        "department": normalize_department(department),  # Use display name
         "description": epic_details["description"],
         "start-date": "",
         "end-date": "",
@@ -171,7 +153,7 @@ def run_pipeline_with_rag(
     }
     
     # Generate epics
-    normalized_depts = [normalize_department(d) for d in departments]
+    normalized_depts = [get_department_bucket(d) for d in departments]
     unique_depts = list(dict.fromkeys(normalized_depts))  # Remove duplicates, keep order
     
     epics = []
@@ -301,12 +283,13 @@ def run_pipeline_with_rag(
         "marketing": [],
         "chuyên môn": [],
         "tài chính": [],
+        "đối ngoại": [],
     }
     
     # Map epic_id to normalized department
     epic_dept_map = {}
     for e in epics:
-        normalized = normalize_department(e["department"])
+        normalized = get_department_bucket(e["department"])
         epic_dept_map[e["epic_id"]] = normalized
     
     for task in tasks:

@@ -1,5 +1,6 @@
 from typing import Dict, List, Any
 from venue_classifier import VenueTier, scale_risk_level
+from utils.department_normalizer import get_department_bucket as _normalize_department
 
 
 def generate_risks_by_department(
@@ -244,20 +245,7 @@ def generate_overall_risks(
     return scaled_overall
 
 
-def _normalize_department(dept: str) -> str:
-    """Normalize department name to standard bucket"""
-    dept_lower = dept.lower().strip()
-    
-    if any(k in dept_lower for k in ["hậu cần", "hau can", "logistics", "vận hành"]):
-        return "hậu cần"
-    if any(k in dept_lower for k in ["media", "marketing", "maketing", "truyền thông", "truyen thong"]):
-        return "marketing"
-    if any(k in dept_lower for k in ["chuyên môn", "chuyen mon", "technical", "it", "kỹ thuật"]):
-        return "chuyên môn"
-    if any(k in dept_lower for k in ["tài chính", "tai chinh", "finance"]):
-        return "tài chính"
-    
-    return dept  # Return original if can't normalize
+
 
 
 # Example usage

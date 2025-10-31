@@ -23,16 +23,11 @@ async def send_message(chat_input: ChatInput) -> Dict[str, Any]:
     """
     Send message to AI assistant
     
-    Returns exact format:
-    {
-        "session_id": str,
-        "message": str,  # AI response
-        "extracted_info": {...},  # Only when generating WBS
-        "epics_task": [...],      # Only when generating WBS
-        "tasks": [...],           # Only when generating WBS
-        "departments": {...},     # Only when generating WBS
-        "risks": {...}            # Only when generating WBS
-    }
+    Returns format with clear state indication:
+    - state: "conversation" | "planning_partial" | "planning_complete"
+    - message: AI response text
+    - extracted_info: Extracted event info (if state != "conversation")
+    - wbs: Full WBS data (only if state == "planning_complete")
     """
     try:
         # Generate session_id if not provided
@@ -44,27 +39,38 @@ async def send_message(chat_input: ChatInput) -> Dict[str, Any]:
             session_id=session_id
         )
         
-        # Build response with session_id
+        # Determine state based on result content
+        state = result.get("state", "conversation")
+        
+        # Build base response
         response = {
             "session_id": session_id,
+            "state": state,
             "message": result.get("message", ""),
         }
         
-        # Add WBS data if available (when event planning is complete)
-        if "extracted_info" in result:
+        # Add extracted info if available (both partial and complete states)
+        if "extracted_info" in result and state != "conversation":
             response["extracted_info"] = result["extracted_info"]
         
-        if "epics_task" in result:
-            response["epics_task"] = result["epics_task"]
-        
-        if "tasks" in result:
-            response["tasks"] = result["tasks"]
-        
-        if "departments" in result:
-            response["departments"] = result["departments"]
-        
-        if "risks" in result:
-            response["risks"] = result["risks"]
+        # Add full WBS data ONLY when planning is complete
+        if state == "planning_complete":
+            # Ensure all WBS components are present
+            if all(key in result for key in ["epics_task", "tasks", "departments", "risks"]):
+                response["wbs"] = {
+                    "epics_task": result["epics_task"],
+                    "tasks": result["tasks"],
+                    "departments": result["departments"],
+                    "risks": result["risks"],
+                }
+                
+                # Optional: Add RAG insights if available
+                if "rag_insights" in result:
+                    response["rag_insights"] = result["rag_insights"]
+            else:
+                # Incomplete WBS - should not happen, but handle gracefully
+                response["state"] = "error"
+                response["error"] = "WBS generation incomplete"
         
         return response
         
@@ -117,6 +123,7 @@ async def health_check():
             "context_switching",
             "rag_queries",
             "venue_tier_scaling",
-            "risk_assessment"
+            "risk_assessment",
+            "state_management"
         ]
     }
