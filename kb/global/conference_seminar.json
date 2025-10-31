@@ -1,0 +1,219 @@
+{
+  "doc_id": "conference_seminar",
+  "event_type": ["conference", "seminar", "workshop", "hội nghị", "hội thảo", "training"],
+  "context_tags": ["indoor", "professional", "speaker", "presentation", "networking", "education"],
+  "baseline_tasks": [
+    {
+      "name": "Xác định chủ đề & mục tiêu hội nghị",
+      "owner_department": "Nội dung",
+      "description": "Định nghĩa chủ đề chính, mục tiêu học tập, đối tượng tham gia",
+      "priority": "critical",
+      "suggested_duration_days": 3,
+      "dependencies": [],
+      "deadline": "T-60",
+      "notes": "Cần research xu hướng ngành, nhu cầu thị trường"
+    },
+    {
+      "name": "Lên danh sách diễn giả mục tiêu",
+      "owner_department": "Đối ngoại",
+      "description": "Research và liệt kê diễn giả có chuyên môn phù hợp với chủ đề",
+      "priority": "high",
+      "suggested_duration_days": 2,
+      "dependencies": ["Xác định chủ đề & mục tiêu hội nghị"],
+      "deadline": "T-50",
+      "notes": "Tìm kiếm trên LinkedIn, Google Scholar, industry networks"
+    },
+    {
+      "name": "Liên hệ & mời diễn giả",
+      "owner_department": "Đối ngoại",
+      "description": "Gửi email mời, trình bày concept, thảo luận điều kiện",
+      "priority": "critical",
+      "suggested_duration_days": 5,
+      "dependencies": ["Lên danh sách diễn giả mục tiêu"],
+      "deadline": "T-40",
+      "notes": "Cần có pitch deck chuyên nghiệp, highlight benefits"
+    },
+    {
+      "name": "Ký hợp đồng diễn giả & speaker agreement",
+      "owner_department": "Đối ngoại",
+      "description": "Ký hợp đồng chính thức, thỏa thuận honorarium, travel expenses",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": ["Liên hệ & mời diễn giả"],
+      "deadline": "T-35",
+      "notes": "Bao gồm: honorarium, travel, accommodation, presentation requirements"
+    },
+    {
+      "name": "Tìm kiếm & đặt venue phù hợp",
+      "owner_department": "Hậu cần",
+      "description": "Tìm venue có đủ capacity, AV equipment, parking, accessibility",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": [],
+      "deadline": "T-45",
+      "notes": "Cần có: projector, sound system, WiFi, breakout rooms"
+    },
+    {
+      "name": "Ký hợp đồng venue & đặt cọc",
+      "owner_department": "Tài chính",
+      "description": "Ký hợp đồng venue, đặt cọc, xác nhận booking",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Tìm kiếm & đặt venue phù hợp"],
+      "deadline": "T-40",
+      "notes": "Cần có cancellation policy, backup venue"
+    },
+    {
+      "name": "Thiết kế chương trình chi tiết",
+      "owner_department": "Nội dung",
+      "description": "Lên timeline chi tiết, session topics, breaks, networking time",
+      "priority": "high",
+      "suggested_duration_days": 2,
+      "dependencies": ["Ký hợp đồng diễn giả & speaker agreement"],
+      "deadline": "T-30",
+      "notes": "Balance giữa content và networking, có buffer time"
+    },
+    {
+      "name": "Setup hệ thống đăng ký online",
+      "owner_department": "Media",
+      "description": "Tạo form đăng ký, payment gateway, confirmation emails",
+      "priority": "high",
+      "suggested_duration_days": 2,
+      "dependencies": ["Thiết kế chương trình chi tiết"],
+      "deadline": "T-25",
+      "notes": "Sử dụng Eventbrite, Zoom, hoặc custom platform"
+    },
+    {
+      "name": "Thiết kế ấn phẩm truyền thông",
+      "owner_department": "Media",
+      "description": "Thiết kế poster, banner, social media posts, email templates",
+      "priority": "medium",
+      "suggested_duration_days": 3,
+      "dependencies": ["Thiết kế chương trình chi tiết"],
+      "deadline": "T-20",
+      "notes": "Professional design, consistent branding"
+    },
+    {
+      "name": "Triển khai chiến dịch marketing",
+      "owner_department": "Media",
+      "description": "Đăng bài social media, email marketing, PR, influencer outreach",
+      "priority": "medium",
+      "suggested_duration_days": 10,
+      "dependencies": ["Thiết kế ấn phẩm truyền thông"],
+      "deadline": "T-5",
+      "notes": "Multi-channel approach, track registration metrics"
+    },
+    {
+      "name": "Chuẩn bị tài liệu hội nghị",
+      "owner_department": "Nội dung",
+      "description": "Tạo name tags, agenda, speaker bios, handouts, certificates",
+      "priority": "medium",
+      "suggested_duration_days": 2,
+      "dependencies": ["Thiết kế chương trình chi tiết"],
+      "deadline": "T-7",
+      "notes": "Professional printing, quality materials"
+    },
+    {
+      "name": "Setup AV equipment & technical support",
+      "owner_department": "Hậu cần",
+      "description": "Test projector, sound system, recording equipment, backup plans",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Ký hợp đồng venue & đặt cọc"],
+      "deadline": "T-2",
+      "notes": "Cần có technician onsite, backup equipment"
+    },
+    {
+      "name": "Chuẩn bị catering & refreshments",
+      "owner_department": "Hậu cần",
+      "description": "Đặt coffee break, lunch, water, dietary requirements",
+      "priority": "medium",
+      "suggested_duration_days": 1,
+      "dependencies": [],
+      "deadline": "T-5",
+      "notes": "Catering cho số lượng đã đăng ký, có options cho dietary restrictions"
+    },
+    {
+      "name": "Training staff & volunteers",
+      "owner_department": "Hậu cần",
+      "description": "Training check-in staff, technical support, event coordinators",
+      "priority": "medium",
+      "suggested_duration_days": 1,
+      "dependencies": ["Setup hệ thống đăng ký online"],
+      "deadline": "T-3",
+      "notes": "Role play scenarios, emergency procedures"
+    },
+    {
+      "name": "Final rehearsal & walkthrough",
+      "owner_department": "Nội dung",
+      "description": "Chạy thử toàn bộ chương trình, test AV, speaker briefings",
+      "priority": "high",
+      "suggested_duration_days": 0,
+      "dependencies": ["Training staff & volunteers", "Setup AV equipment & technical support"],
+      "deadline": "T-1",
+      "notes": "Full day rehearsal, speaker có mặt"
+    },
+    {
+      "name": "Lập ngân sách hội nghị",
+      "owner_department": "Tài chính",
+      "description": "Tính toán chi phí venue, speakers, marketing, catering, logistics",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": [],
+      "deadline": "T-50",
+      "notes": "Chi tiết từng hạng mục, có contingency fund"
+    },
+    {
+      "name": "Theo dõi thu chi & ROI",
+      "owner_department": "Tài chính",
+      "description": "Track registration revenue, expenses, calculate ROI",
+      "priority": "medium",
+      "suggested_duration_days": 15,
+      "dependencies": ["Lập ngân sách hội nghị"],
+      "deadline": "T+7",
+      "notes": "Daily tracking, weekly reports"
+    },
+    {
+      "name": "Post-event follow-up & feedback",
+      "owner_department": "Media",
+      "description": "Gửi thank you emails, survey feedback, share recordings",
+      "priority": "low",
+      "suggested_duration_days": 3,
+      "dependencies": ["Final rehearsal & walkthrough"],
+      "deadline": "T+3",
+      "notes": "NPS survey, testimonials, case studies"
+    }
+  ],
+  "milestones": [
+    {
+      "name": "Speaker Lineup Confirmed",
+      "deadline": "T-35",
+      "description": "Tất cả diễn giả đã xác nhận tham gia"
+    },
+    {
+      "name": "Venue Booked",
+      "deadline": "T-40",
+      "description": "Venue đã được đặt và xác nhận"
+    },
+    {
+      "name": "Registration Opens",
+      "deadline": "T-25",
+      "description": "Hệ thống đăng ký đã mở"
+    },
+    {
+      "name": "Marketing Campaign Live",
+      "deadline": "T-20",
+      "description": "Chiến dịch marketing đã bắt đầu"
+    },
+    {
+      "name": "Final Agenda Published",
+      "deadline": "T-10",
+      "description": "Chương trình cuối cùng đã được công bố"
+    },
+    {
+      "name": "Conference Starts",
+      "deadline": "T-0",
+      "description": "Hội nghị chính thức bắt đầu"
+    }
+  ]
+}

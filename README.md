@@ -93,8 +93,39 @@ Truy cập Swagger UI: http://127.0.0.1:8000/docs
 
 ## 4. API Endpoints
 
-### **POST /api/wbs/generate**
-Tạo WBS cho sự kiện mới
+### **🆕 POST /api/chat/generate-wbs** (NEW!)
+Tạo WBS từ tin nhắn tự nhiên với conversation memory
+
+**Request Body:**
+```json
+{
+  "message": "Tôi muốn tổ chức concert tại FPT University vào 25/12, có 20 người trong 4 ban",
+  "session_id": "optional-session-id"
+}
+```
+
+**Response:**
+```json
+{
+  "session_id": "uuid-session-id",
+  "message": "Đã tạo thành công WBS cho \"Concert\"!",
+  "wbs_data": {
+    "epics": [...],
+    "tasks": [...]
+  },
+  "extracted_info": {
+    "event_name": "Concert",
+    "event_type": "concert_opening",
+    "event_date": "2024-12-25",
+    "venue": "FPT University",
+    "headcount_total": 20,
+    "departments": ["Hậu cần", "Media", "Đối ngoại", "Tài chính"]
+  }
+}
+```
+
+### **POST /api/wbs/generate** (Legacy)
+Tạo WBS cho sự kiện mới (JSON input)
 
 **Request Body:**
 ```json
@@ -165,17 +196,52 @@ Tạo WBS cho sự kiện mới
 
 ## 5. Các loại sự kiện được hỗ trợ
 
-| Event Type | Mô tả | Đặc điểm chính |
-|------------|-------|----------------|
-| `concert_opening` | Concert khai mạc | Sân khấu, âm thanh, nghệ sĩ, an ninh |
-| `food_festival` | Lễ hội ẩm thực | An toàn thực phẩm, vendor, layout |
-| `conference` | Hội nghị | Diễn giả, venue, đăng ký, sponsor |
-| `sport_competition` | Thi đấu thể thao | Vận động viên, sân bãi, trọng tài |
-| `career_fair` | Ngày hội việc làm | Doanh nghiệp, gian hàng, tuyển dụng |
+| Event Type | Mô tả | Đặc điểm chính | Keywords |
+|------------|-------|----------------|----------|
+| `concert_opening` | Concert khai mạc | Sân khấu, âm thanh, nghệ sĩ, an ninh | concert, hòa nhạc, show, music |
+| `food_festival` | Lễ hội ẩm thực | An toàn thực phẩm, vendor, layout | festival, lễ hội, food |
+| `conference` | Hội nghị | Diễn giả, venue, đăng ký, sponsor | conference, hội nghị, seminar, workshop |
+| `sport_competition` | Thi đấu thể thao | Vận động viên, sân bãi, trọng tài | thi đấu, sport, tournament |
+| `career_fair` | Ngày hội việc làm | Doanh nghiệp, gian hàng, tuyển dụng | career fair, ngày hội việc làm, job fair, tuyển dụng |
+
+## 6. 🆕 Chat Interface Features
+
+### **Conversation Memory**
+- AI ghi nhớ toàn bộ cuộc trò chuyện
+- Có thể chỉnh sửa thông tin đã cung cấp
+- Context-aware responses
+
+### **Natural Language Processing**
+- Hiểu tiếng Việt tự nhiên
+- Trích xuất thông tin từ câu nói
+- Hỗ trợ nhiều format ngày tháng
+
+### **Session Management**
+- Mỗi cuộc trò chuyện có session_id riêng
+- Xem lịch sử cuộc trò chuyện
+- Xóa session khi cần
+
+### **Example Conversation**
+```
+User: "Tôi muốn tổ chức concert"
+AI: "Tôi cần thêm thông tin: ngày tổ chức, số lượng người tham gia, địa điểm tổ chức, các ban tham gia"
+
+User: "Tại FPT University"  
+AI: "Tôi cần thêm thông tin: ngày tổ chức, số lượng người tham gia, các ban tham gia"
+
+User: "Vào ngày 25/12/2024"
+AI: "Tôi cần thêm thông tin: số lượng người tham gia, các ban tham gia"
+
+User: "Có 20 người trong 4 ban: Hậu cần, Media, Đối ngoại, Tài chính"
+AI: "Đã tạo thành công WBS cho 'Concert'! [WBS data...]"
+
+User: "Thay đổi ngày thành 30/12/2024"
+AI: "Đã cập nhật WBS với ngày mới! [Updated WBS data...]"
+```
 
 ---
 
-## 6. Kiến trúc hệ thống
+## 7. Kiến trúc hệ thống
 
 ### **RAG Pipeline**
 1. **Retrieval**: Tìm kiếm thông tin liên quan từ Knowledge Base dựa trên loại sự kiện

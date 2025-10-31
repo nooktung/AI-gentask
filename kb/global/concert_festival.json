@@ -1,72 +1,329 @@
 {
   "doc_id": "concert_festival",
-  "event_type": ["concert_opening", "Concert", "Music Festival", "Show âm nhạc sinh viên"],
-  "context_tags": ["outdoor", "night_event", "sound_stage", "vip", "security"],
+  "event_type": ["concert_opening", "Concert", "Music Festival", "Show âm nhạc sinh viên", "Hòa nhạc", "Live Music"],
+  "context_tags": ["outdoor", "night_event", "sound_stage", "vip", "security", "music", "entertainment"],
   "baseline_tasks": [
     {
-      "name": "Sân khấu & Âm thanh ánh sáng",
+      "name": "Khảo sát địa điểm & đo đạc kỹ thuật",
       "owner_department": "Hậu cần",
-      "notes": "Thuê sân khấu, kỹ thuật âm thanh, ánh sáng và setup tổng thể.",
-      "deadline": "T-7",
-      "priority": "high",
-      "dependencies": []
-    },
-    {
-      "name": "Truyền thông & KOL",
-      "owner_department": "Media/Marketing",
-      "notes": "Lên kế hoạch truyền thông, hợp tác KOL/DJ, trailer video.",
-      "deadline": "T-14",
-      "priority": "high",
-      "dependencies": []
-    },
-    {
-      "name": "Đối ngoại & Nghệ sĩ",
-      "owner_department": "Đối ngoại",
-      "notes": "Liên hệ và ký hợp đồng với ca sĩ, DJ, khách mời đặc biệt.",
-      "deadline": "T-21",
+      "description": "Đo đạc kích thước sân khấu, điểm đặt loa, vị trí ánh sáng, đường dây điện, điểm tiếp đất",
       "priority": "critical",
-      "dependencies": []
-    },
-    {
-      "name": "An ninh & Vé vào cổng",
-      "owner_department": "Hậu cần",
-      "notes": "Phối hợp bảo vệ, kiểm soát vé và crowd control.",
-      "deadline": "T-3",
-      "priority": "high",
-      "dependencies": ["Sân khấu & Âm thanh ánh sáng"]
-    },
-    {
-      "name": "Xin duyệt IC-PDP & PCCC",
-      "owner_department": "BTC/IC",
-      "notes": "Chuẩn bị hồ sơ, giấy phép âm thanh công cộng, và phương án an toàn.",
+      "suggested_duration_days": 2,
+      "dependencies": [],
       "deadline": "T-30",
-      "priority": "critical",
-      "dependencies": []
+      "notes": "Cần có bản vẽ kỹ thuật chi tiết, đo điện áp, kiểm tra tải điện"
     },
     {
-      "name": "Nội dung chương trình & MC",
-      "owner_department": "Nội dung",
-      "notes": "Xây timeline biểu diễn, script MC, và các phân đoạn sân khấu.",
+      "name": "Thiết kế sân khấu 3D & layout tổng thể",
+      "owner_department": "Hậu cần", 
+      "description": "Thiết kế sân khấu, vị trí nghệ sĩ, khu vực khán giả, lối thoát hiểm",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": ["Khảo sát địa điểm & đo đạc kỹ thuật"],
+      "deadline": "T-25",
+      "notes": "Sử dụng phần mềm SketchUp hoặc AutoCAD, tính toán tải trọng sân khấu"
+    },
+    {
+      "name": "Thiết kế hệ thống âm thanh chuyên nghiệp",
+      "owner_department": "Hậu cần",
+      "description": "Thiết kế hệ thống loa, mixer, monitor, micro, dây cáp âm thanh",
+      "priority": "high", 
+      "suggested_duration_days": 2,
+      "dependencies": ["Thiết kế sân khấu 3D & layout tổng thể"],
+      "deadline": "T-20",
+      "notes": "Tính toán công suất loa, khoảng cách phủ sóng, feedback prevention"
+    },
+    {
+      "name": "Thiết kế hệ thống ánh sáng sân khấu",
+      "owner_department": "Hậu cần",
+      "description": "Thiết kế đèn LED, spot light, laser, smoke machine, DMX control",
+      "priority": "high",
+      "suggested_duration_days": 2, 
+      "dependencies": ["Thiết kế sân khấu 3D & layout tổng thể"],
+      "deadline": "T-20",
+      "notes": "Tạo light show theo từng bài hát, sync với nhạc"
+    },
+    {
+      "name": "Thuê thiết bị âm thanh chuyên nghiệp",
+      "owner_department": "Tài chính",
+      "description": "Thuê mixer 32 channel, loa chính, loa monitor, micro không dây, dây cáp",
+      "priority": "critical",
+      "suggested_duration_days": 3,
+      "dependencies": ["Thiết kế hệ thống âm thanh chuyên nghiệp"],
+      "deadline": "T-15",
+      "notes": "Kiểm tra chất lượng thiết bị, backup plan, bảo hiểm thiết bị"
+    },
+    {
+      "name": "Thuê thiết bị ánh sáng & hiệu ứng",
+      "owner_department": "Tài chính", 
+      "description": "Thuê đèn LED, spot light, laser, smoke machine, DMX controller",
+      "priority": "high",
+      "suggested_duration_days": 2,
+      "dependencies": ["Thiết kế hệ thống ánh sáng sân khấu"],
+      "deadline": "T-15",
+      "notes": "Test thiết bị trước khi thuê, có technician hỗ trợ"
+    },
+    {
+      "name": "Lắp đặt sân khấu & khung sắt",
+      "owner_department": "Hậu cần",
+      "description": "Dựng khung sân khấu, lắp sàn gỗ, lan can an toàn, backdrop",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": ["Thuê thiết bị âm thanh chuyên nghiệp", "Thuê thiết bị ánh sáng & hiệu ứng"],
       "deadline": "T-7",
+      "notes": "Cần team 6-8 người, dụng cụ bảo hộ, kiểm tra độ chắc chắn"
+    },
+    {
+      "name": "Chạy dây điện & kết nối hệ thống",
+      "owner_department": "Hậu cần",
+      "description": "Chạy dây điện 3 pha, dây DMX, dây âm thanh, setup power distribution",
+      "priority": "critical",
+      "suggested_duration_days": 1,
+      "dependencies": ["Lắp đặt sân khấu & khung sắt"],
+      "deadline": "T-6",
+      "notes": "Cần thợ điện có chứng chỉ, test điện áp, đảm bảo an toàn"
+    },
+    {
+      "name": "Test hệ thống âm thanh tổng thể",
+      "owner_department": "Hậu cần",
+      "description": "Test loa, mixer, micro, monitor, EQ, compressor, reverb",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Chạy dây điện & kết nối hệ thống"],
+      "deadline": "T-5",
+      "notes": "Test với nhạc thật, điều chỉnh EQ, tránh feedback"
+    },
+    {
+      "name": "Test hệ thống ánh sáng & DMX",
+      "owner_department": "Hậu cần",
+      "description": "Test đèn LED, spot light, laser, DMX control, light show",
+      "priority": "high", 
+      "suggested_duration_days": 1,
+      "dependencies": ["Chạy dây điện & kết nối hệ thống"],
+      "deadline": "T-5",
+      "notes": "Test sync với nhạc, tạo light show mẫu"
+    },
+    {
+      "name": "Soundcheck tổng với nghệ sĩ",
+      "owner_department": "Hậu cần",
+      "description": "Soundcheck với nghệ sĩ thật, điều chỉnh monitor, EQ, volume",
+      "priority": "critical",
+      "suggested_duration_days": 0,
+      "dependencies": ["Test hệ thống âm thanh tổng thể", "Test hệ thống ánh sáng & DMX"],
+      "deadline": "T-1",
+      "notes": "Nghệ sĩ phải có mặt, test từng bài hát, ghi lại setting"
+    },
+    {
+      "name": "Liên hệ & đàm phán với nghệ sĩ",
+      "owner_department": "Đối ngoại",
+      "description": "Tìm kiếm nghệ sĩ phù hợp, đàm phán cát-xê, điều khoản hợp đồng",
+      "priority": "critical",
+      "suggested_duration_days": 5,
+      "dependencies": [],
+      "deadline": "T-45",
+      "notes": "Research nghệ sĩ trending, budget phù hợp, availability"
+    },
+    {
+      "name": "Ký hợp đồng nghệ sĩ & rider kỹ thuật",
+      "owner_department": "Đối ngoại",
+      "description": "Ký hợp đồng chính thức, thu thập rider kỹ thuật, yêu cầu đặc biệt",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": ["Liên hệ & đàm phán với nghệ sĩ"],
+      "deadline": "T-35",
+      "notes": "Rider bao gồm: đồ ăn, nước uống, phòng nghỉ, thiết bị đặc biệt"
+    },
+    {
+      "name": "Đặt phòng nghỉ & dịch vụ cho nghệ sĩ",
+      "owner_department": "Đối ngoại",
+      "description": "Đặt khách sạn, xe đưa đón, đồ ăn theo rider, bảo mẫu",
+      "priority": "high",
+      "suggested_duration_days": 2,
+      "dependencies": ["Ký hợp đồng nghệ sĩ & rider kỹ thuật"],
+      "deadline": "T-20",
+      "notes": "Khách sạn gần venue, xe VIP, đồ ăn theo yêu cầu"
+    },
+    {
+      "name": "Lên kế hoạch truyền thông tổng thể",
+      "owner_department": "Media",
+      "description": "Xác định mục tiêu, đối tượng, kênh truyền thông, timeline, budget",
+      "priority": "high",
+      "suggested_duration_days": 3,
+      "dependencies": [],
+      "deadline": "T-40",
+      "notes": "Target audience: sinh viên 18-25 tuổi, kênh: Facebook, Instagram, TikTok"
+    },
+    {
+      "name": "Thiết kế Key Visual & Brand Identity",
+      "owner_department": "Media",
+      "description": "Thiết kế logo, color scheme, typography, visual style cho toàn bộ ấn phẩm",
+      "priority": "high",
+      "suggested_duration_days": 4,
+      "dependencies": ["Lên kế hoạch truyền thông tổng thể"],
+      "deadline": "T-30",
+      "notes": "Modern, trendy, phù hợp với target audience"
+    },
+    {
+      "name": "Thiết kế poster & banner quảng cáo",
+      "owner_department": "Media",
+      "description": "Thiết kế poster A3, banner, standee, backdrop theo Key Visual",
       "priority": "medium",
-      "dependencies": ["Đối ngoại & Nghệ sĩ"]
+      "suggested_duration_days": 2,
+      "dependencies": ["Thiết kế Key Visual & Brand Identity"],
+      "deadline": "T-25",
+      "notes": "Nhiều size khác nhau, chất lượng in cao"
+    },
+    {
+      "name": "Sản xuất video teaser & trailer",
+      "owner_department": "Media",
+      "description": "Quay video teaser 30s, trailer 60s, behind the scenes",
+      "priority": "medium",
+      "suggested_duration_days": 5,
+      "dependencies": ["Thiết kế Key Visual & Brand Identity"],
+      "deadline": "T-20",
+      "notes": "Cần drone, camera 4K, editor chuyên nghiệp"
+    },
+    {
+      "name": "Triển khai chiến dịch social media",
+      "owner_department": "Media",
+      "description": "Đăng content Facebook, Instagram, TikTok, tương tác với audience",
+      "priority": "medium",
+      "suggested_duration_days": 15,
+      "dependencies": ["Thiết kế poster & banner quảng cáo", "Sản xuất video teaser & trailer"],
+      "deadline": "T-5",
+      "notes": "Daily posts, stories, reels, live streaming"
+    },
+    {
+      "name": "Đặt quảng cáo Facebook & Google",
+      "owner_department": "Media",
+      "description": "Setup Facebook Ads, Google Ads, target audience, budget allocation",
+      "priority": "medium",
+      "suggested_duration_days": 2,
+      "dependencies": ["Thiết kế poster & banner quảng cáo"],
+      "deadline": "T-15",
+      "notes": "Budget 5-10 triệu, target sinh viên HCM"
+    },
+    {
+      "name": "Lập phương án an ninh & phân luồng",
+      "owner_department": "Hậu cần",
+      "description": "Phương án an ninh, phân luồng khán giả, kiểm soát đám đông",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": [],
+      "deadline": "T-20",
+      "notes": "Cần phối hợp với công an, bảo vệ chuyên nghiệp"
+    },
+    {
+      "name": "Setup hệ thống soát vé & check-in",
+      "owner_department": "Hậu cần",
+      "description": "Setup máy quét QR code, check-in app, phân luồng vào cổng",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Lập phương án an ninh & phân luồng"],
+      "deadline": "T-3",
+      "notes": "Test hệ thống, backup plan khi lỗi"
+    },
+    {
+      "name": "Training nhân viên an ninh & soát vé",
+      "owner_department": "Hậu cần",
+      "description": "Training nhân viên an ninh, soát vé, xử lý tình huống",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Setup hệ thống soát vé & check-in"],
+      "deadline": "T-2",
+      "notes": "Role play các tình huống, emergency procedures"
+    },
+    {
+      "name": "Lập dự trù ngân sách chi tiết",
+      "owner_department": "Tài chính",
+      "description": "Lập ngân sách theo từng hạng mục: thiết bị, nghệ sĩ, marketing, logistics",
+      "priority": "critical",
+      "suggested_duration_days": 3,
+      "dependencies": [],
+      "deadline": "T-50",
+      "notes": "Chi tiết từng khoản, có buffer 10-15%"
+    },
+    {
+      "name": "Phê duyệt ngân sách & ký hợp đồng",
+      "owner_department": "Tài chính",
+      "description": "Trình phê duyệt ngân sách, ký hợp đồng với nhà cung cấp",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": ["Lập dự trù ngân sách chi tiết"],
+      "deadline": "T-40",
+      "notes": "Cần approval từ ban lãnh đạo"
+    },
+    {
+      "name": "Theo dõi chi phí & thanh toán",
+      "owner_department": "Tài chính",
+      "description": "Theo dõi chi phí thực tế, thanh toán nhà cung cấp, kiểm soát budget",
+      "priority": "high",
+      "suggested_duration_days": 20,
+      "dependencies": ["Phê duyệt ngân sách & ký hợp đồng"],
+      "deadline": "T-1",
+      "notes": "Daily tracking, alert khi vượt budget"
+    },
+    {
+      "name": "Quyết toán & báo cáo tài chính",
+      "owner_department": "Tài chính",
+      "description": "Tổng hợp chi phí, thu nhập, lãi lỗ, báo cáo tài chính cuối sự kiện",
+      "priority": "medium",
+      "suggested_duration_days": 3,
+      "dependencies": ["Theo dõi chi phí & thanh toán"],
+      "deadline": "T+7",
+      "notes": "Báo cáo chi tiết cho ban lãnh đạo"
+    },
+    {
+      "name": "Soạn rundown chi tiết & cue sheet",
+      "owner_department": "Nội dung",
+      "description": "Soạn timeline chi tiết từng phút, cue sheet cho MC, stage manager",
+      "priority": "high",
+      "suggested_duration_days": 2,
+      "dependencies": ["Ký hợp đồng nghệ sĩ & rider kỹ thuật"],
+      "deadline": "T-10",
+      "notes": "Timeline chính xác từng phút, có buffer time"
+    },
+    {
+      "name": "Training MC & stage manager",
+      "owner_department": "Nội dung",
+      "description": "Training MC về script, stage manager về cue sheet, emergency procedures",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Soạn rundown chi tiết & cue sheet"],
+      "deadline": "T-3",
+      "notes": "Rehearsal với MC, test cue sheet"
+    },
+    {
+      "name": "Tổng duyệt cuối cùng",
+      "owner_department": "Nội dung",
+      "description": "Tổng duyệt toàn bộ chương trình với nghệ sĩ, MC, technical team",
+      "priority": "critical",
+      "suggested_duration_days": 0,
+      "dependencies": ["Training MC & stage manager", "Soundcheck tổng với nghệ sĩ"],
+      "deadline": "T-1",
+      "notes": "Chạy full show, test tất cả equipment"
     }
   ],
   "milestones": [
     {
       "name": "Contracts Signed",
-      "deadline": "T-21",
+      "deadline": "T-35",
       "description": "Tất cả hợp đồng nghệ sĩ và nhà cung cấp đã ký"
     },
     {
       "name": "Key Visual Approved", 
-      "deadline": "T-14",
+      "deadline": "T-30",
       "description": "Key visual và ấn phẩm truyền thông đã được duyệt"
     },
     {
-      "name": "Vendor List Locked",
-      "deadline": "T-10",
-      "description": "Danh sách nhà cung cấp cuối cùng đã xác định"
+      "name": "Equipment Ready",
+      "deadline": "T-15",
+      "description": "Tất cả thiết bị âm thanh, ánh sáng đã sẵn sàng"
+    },
+    {
+      "name": "Marketing Campaign Live",
+      "deadline": "T-20",
+      "description": "Chiến dịch truyền thông đã bắt đầu"
     },
     {
       "name": "Final Rehearsal Complete",

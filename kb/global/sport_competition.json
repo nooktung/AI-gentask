@@ -1,0 +1,259 @@
+{
+  "doc_id": "sport_competition",
+  "event_type": ["sport_competition", "thi đấu", "tournament", "championship", "sports event", "thể thao"],
+  "context_tags": ["outdoor", "athletes", "competition", "referees", "medical", "safety", "awards"],
+  "baseline_tasks": [
+    {
+      "name": "Xác định môn thể thao & format thi đấu",
+      "owner_department": "Nội dung",
+      "description": "Chọn môn thể thao, format thi đấu (knockout, round-robin), số lượng đội/VĐV",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": [],
+      "deadline": "T-60",
+      "notes": "Cần research popularity, facilities available, budget constraints"
+    },
+    {
+      "name": "Mở đăng ký vận động viên/đội",
+      "owner_department": "Nội dung",
+      "description": "Tạo form đăng ký, thông báo rules, requirements, deadlines",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Xác định môn thể thao & format thi đấu"],
+      "deadline": "T-45",
+      "notes": "Cần có registration system, payment gateway, confirmation emails"
+    },
+    {
+      "name": "Phân loại & seed vận động viên",
+      "owner_department": "Nội dung",
+      "description": "Phân loại theo trình độ, tạo seeding, bracket system",
+      "priority": "high",
+      "suggested_duration_days": 2,
+      "dependencies": ["Mở đăng ký vận động viên/đội"],
+      "deadline": "T-20",
+      "notes": "Cần có ranking system, fair seeding algorithm"
+    },
+    {
+      "name": "Lập lịch thi đấu chi tiết",
+      "owner_department": "Nội dung",
+      "description": "Tạo schedule chi tiết, court assignments, time slots",
+      "priority": "critical",
+      "suggested_duration_days": 3,
+      "dependencies": ["Phân loại & seed vận động viên"],
+      "deadline": "T-15",
+      "notes": "Balance rest time, court availability, spectator convenience"
+    },
+    {
+      "name": "Thông báo lịch thi đấu cho VĐV",
+      "owner_department": "Media",
+      "description": "Gửi schedule, rules, venue info cho tất cả participants",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Lập lịch thi đấu chi tiết"],
+      "deadline": "T-10",
+      "notes": "Email blast, social media, website update"
+    },
+    {
+      "name": "Kiểm tra & chuẩn bị sân bãi",
+      "owner_department": "Hậu cần",
+      "description": "Kiểm tra chất lượng sân, vạch kẻ, net, equipment",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": [],
+      "deadline": "T-7",
+      "notes": "Cần có checklist, maintenance team, backup courts"
+    },
+    {
+      "name": "Chuẩn bị trang thiết bị thi đấu",
+      "owner_department": "Hậu cần",
+      "description": "Chuẩn bị balls, rackets, protective gear, scoreboards",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Kiểm tra & chuẩn bị sân bãi"],
+      "deadline": "T-5",
+      "notes": "Cần có backup equipment, quality control"
+    },
+    {
+      "name": "Setup sân thi đấu & equipment",
+      "owner_department": "Hậu cần",
+      "description": "Setup courts, nets, scoreboards, seating, barriers",
+      "priority": "critical",
+      "suggested_duration_days": 1,
+      "dependencies": ["Chuẩn bị trang thiết bị thi đấu"],
+      "deadline": "T-2",
+      "notes": "Cần team setup, safety equipment, crowd control"
+    },
+    {
+      "name": "Test thiết bị & hệ thống",
+      "owner_department": "Hậu cần",
+      "description": "Test scoreboards, timing systems, sound system",
+      "priority": "high",
+      "suggested_duration_days": 0,
+      "dependencies": ["Setup sân thi đấu & equipment"],
+      "deadline": "T-1",
+      "notes": "Full system test, backup plans, technician onsite"
+    },
+    {
+      "name": "Tuyển chọn & training trọng tài",
+      "owner_department": "Chuyên môn",
+      "description": "Tuyển trọng tài có kinh nghiệm, training rules, procedures",
+      "priority": "high",
+      "suggested_duration_days": 2,
+      "dependencies": [],
+      "deadline": "T-20",
+      "notes": "Cần có certified referees, backup officials"
+    },
+    {
+      "name": "Briefing trọng tài & officials",
+      "owner_department": "Chuyên môn",
+      "description": "Briefing về rules, procedures, emergency protocols",
+      "priority": "high",
+      "suggested_duration_days": 0,
+      "dependencies": ["Tuyển chọn & training trọng tài"],
+      "deadline": "T-1",
+      "notes": "Final briefing, rule clarifications, uniform distribution"
+    },
+    {
+      "name": "Setup đội ngũ y tế & sơ cứu",
+      "owner_department": "Chuyên môn",
+      "description": "Thuê bác sĩ, y tá, setup first aid station, ambulance",
+      "priority": "critical",
+      "suggested_duration_days": 1,
+      "dependencies": [],
+      "deadline": "T-10",
+      "notes": "Cần có licensed medical staff, emergency protocols"
+    },
+    {
+      "name": "Chuẩn bị dụng cụ y tế & sơ cứu",
+      "owner_department": "Chuyên môn",
+      "description": "Chuẩn bị first aid kit, ice packs, stretcher, medical supplies",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": ["Setup đội ngũ y tế & sơ cứu"],
+      "deadline": "T-5",
+      "notes": "Comprehensive medical kit, emergency contact list"
+    },
+    {
+      "name": "Thiết kế & sản xuất giải thưởng",
+      "owner_department": "Nội dung",
+      "description": "Thiết kế medals, trophies, certificates, awards ceremony",
+      "priority": "medium",
+      "suggested_duration_days": 3,
+      "dependencies": [],
+      "deadline": "T-15",
+      "notes": "Professional design, quality materials, engraving"
+    },
+    {
+      "name": "Chuẩn bị lễ trao giải",
+      "owner_department": "Nội dung",
+      "description": "Setup podium, backdrop, music, photographer, MC script",
+      "priority": "medium",
+      "suggested_duration_days": 1,
+      "dependencies": ["Thiết kế & sản xuất giải thưởng"],
+      "deadline": "T-2",
+      "notes": "Professional ceremony, photo opportunities"
+    },
+    {
+      "name": "Setup media & broadcasting",
+      "owner_department": "Media",
+      "description": "Setup cameras, livestream, photography, press area",
+      "priority": "medium",
+      "suggested_duration_days": 1,
+      "dependencies": [],
+      "deadline": "T-3",
+      "notes": "Multi-angle coverage, social media integration"
+    },
+    {
+      "name": "Training media team",
+      "owner_department": "Media",
+      "description": "Training photographers, videographers, social media team",
+      "priority": "medium",
+      "suggested_duration_days": 0,
+      "dependencies": ["Setup media & broadcasting"],
+      "deadline": "T-1",
+      "notes": "Briefing về coverage plan, key moments, social media"
+    },
+    {
+      "name": "Setup crowd management & security",
+      "owner_department": "Hậu cần",
+      "description": "Setup barriers, seating, security team, crowd control",
+      "priority": "high",
+      "suggested_duration_days": 1,
+      "dependencies": [],
+      "deadline": "T-3",
+      "notes": "Professional security, emergency exits, capacity management"
+    },
+    {
+      "name": "Training security & crowd control",
+      "owner_department": "Hậu cần",
+      "description": "Training security team, crowd control procedures, emergency protocols",
+      "priority": "high",
+      "suggested_duration_days": 0,
+      "dependencies": ["Setup crowd management & security"],
+      "deadline": "T-1",
+      "notes": "Role play scenarios, emergency procedures, communication protocols"
+    },
+    {
+      "name": "Lập ngân sách thi đấu",
+      "owner_department": "Tài chính",
+      "description": "Tính toán chi phí venue, equipment, prizes, staff, logistics",
+      "priority": "critical",
+      "suggested_duration_days": 2,
+      "dependencies": [],
+      "deadline": "T-50",
+      "notes": "Chi tiết từng hạng mục, có contingency fund"
+    },
+    {
+      "name": "Theo dõi thu chi & sponsorship",
+      "owner_department": "Tài chính",
+      "description": "Track registration fees, sponsorship revenue, expenses",
+      "priority": "medium",
+      "suggested_duration_days": 20,
+      "dependencies": ["Lập ngân sách thi đấu"],
+      "deadline": "T+7",
+      "notes": "Daily tracking, sponsor deliverables, ROI calculation"
+    },
+    {
+      "name": "Post-event wrap-up & reporting",
+      "owner_department": "Media",
+      "description": "Tổng hợp kết quả, photos, videos, press release, thank you notes",
+      "priority": "low",
+      "suggested_duration_days": 3,
+      "dependencies": ["Chuẩn bị lễ trao giải"],
+      "deadline": "T+3",
+      "notes": "Comprehensive report, media kit, social media highlights"
+    }
+  ],
+  "milestones": [
+    {
+      "name": "Registration Closed",
+      "deadline": "T-20",
+      "description": "Đăng ký đã đóng, danh sách VĐV cuối cùng"
+    },
+    {
+      "name": "Schedule Published",
+      "deadline": "T-10",
+      "description": "Lịch thi đấu đã được công bố"
+    },
+    {
+      "name": "Equipment Ready",
+      "deadline": "T-5",
+      "description": "Tất cả trang thiết bị đã sẵn sàng"
+    },
+    {
+      "name": "Medical Team On-site",
+      "deadline": "T-1",
+      "description": "Đội ngũ y tế đã có mặt"
+    },
+    {
+      "name": "Competition Starts",
+      "deadline": "T-0",
+      "description": "Giải đấu chính thức bắt đầu"
+    },
+    {
+      "name": "Awards Ceremony",
+      "deadline": "T+0",
+      "description": "Lễ trao giải và bế mạc"
+    }
+  ]
+}

@@ -194,3 +194,38 @@ class WBSGenerateResponse(BaseModel):
     tasks: List[Task]
     milestones: List[Milestone]
     summary: dict
+
+
+# New output schemas for department-based tasks and risks
+class TaskRow(BaseModel):
+    task_id: str
+    name: str
+    start_date: str  # YYYY-MM-DD
+    deadline: str    # YYYY-MM-DD
+    depends_on: List[str]
+    complexity: Literal["low", "medium", "high", "critical"]
+
+
+class DepartmentTasks(BaseModel):
+    department: str
+    tasks: List[TaskRow]
+
+
+class RiskItem(BaseModel):
+    id: str
+    title: str
+    level: Literal["low", "medium", "high", "critical"]
+    description: str
+    owner: str | None = None
+
+
+class RisksBlock(BaseModel):
+    by_department: dict  # {department: List[RiskItem]}
+    overall: List[RiskItem]
+
+
+class EventPlan(BaseModel):
+    event_id: str
+    departments: List[DepartmentTasks]
+    risks: RisksBlock
+    # markdown removed; only JSON structure is provided

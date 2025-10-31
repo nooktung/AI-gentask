@@ -37,13 +37,13 @@ def build_metadata(doc: dict):
 
 
 def ingest():
-    print("🚀 Bắt đầu ingest dữ liệu global KB (from ./kb/global)...")
+    print("Starting KB ingestion...")
     embedder = get_embedder()
     col = get_chroma_collection()
 
     all_docs, all_ids, all_metas, all_embs = [], [], [], []
 
-    # ====== Đọc từng file JSON ======
+    # ====== Read JSON files ======
     for file in os.listdir(DATA_DIR):
         if not file.endswith(".json"):
             continue
@@ -54,11 +54,12 @@ def ingest():
         doc_id = doc.get("doc_id") or os.path.splitext(file)[0]
         meta = build_metadata(doc)
 
-        # Biến từng baseline_task thành 1 đoạn văn độc lập
+        # Convert baseline_tasks to text
         tasks = doc.get("baseline_tasks", [])
         text_parts = []
         for t in tasks:
-            part = f"{t['name']} ({t['owner_department']}): {t['notes']}"
+            description = t.get('description') or t.get('notes') or 'No description'
+            part = f"{t['name']} ({t['owner_department']}): {description}"
             text_parts.append(part)
         text_join = "\n".join(text_parts)
 
@@ -66,16 +67,16 @@ def ingest():
         all_docs.append(text_join)
         all_metas.append(meta)
 
-    # ====== Tạo embeddings ======
-    print(f"🔢 Tạo embeddings cho {len(all_docs)} tài liệu...")
+    # ====== Create embeddings ======
+    print(f"Creating embeddings for {len(all_docs)} documents...")
     all_embs = embedder.encode(all_docs, show_progress_bar=True).tolist()
 
-    # ====== Upsert vào Chroma ======
-    print(f"📦 Upsert vào collection '{COLLECTION_NAME}' ...")
+    # ====== Upsert to Chroma ======
+    print(f"Upserting to collection '{COLLECTION_NAME}'...")
     col.upsert(ids=all_ids, documents=all_docs, metadatas=all_metas, embeddings=all_embs)
 
-    print("✅ Ingest hoàn tất!")
-    print(f"📂 Tổng cộng: {len(all_ids)} tài liệu được thêm vào.")
+    print("Ingestion completed!")
+    print(f"Total: {len(all_ids)} documents added.")
 
 
 if __name__ == "__main__":

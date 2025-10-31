@@ -35,7 +35,7 @@ def _get_collection():
 
 
 def retrieve_docs(event_input: Dict[str, Any], top_k: int = 12) -> List[Dict[str, Any]]:
-    # Use event_name + event_type as retrieval query
+    # Use event_name + event_type as retrieval query, optionally scoped by event_id
     query = f"{event_input.get('event_name','')} {event_input.get('event_type','')}".strip()
     if not query:
         return []
@@ -49,11 +49,26 @@ def retrieve_docs(event_input: Dict[str, Any], top_k: int = 12) -> List[Dict[str
         return []
 
     out: List[Dict[str, Any]] = []
+    wanted_event_id = (event_input.get("event_id") or "").strip()
     for i in range(len(res["ids"][0])):
         meta = res["metadatas"][0][i] if res.get("metadatas") else {}
         doc_id = res["ids"][0][i]
         text = res["documents"][0][i] if res.get("documents") else ""
         if isinstance(meta, dict):
             meta.setdefault("doc_id", doc_id)
-        out.append({"doc_id": doc_id, "text": text, "metadata": meta})
+        # If event_id is provided, prefer docs that match it
+        if wanted_event_id:
+            if str(meta.get("event_id") or "") == wanted_event_id:
+                out.append({"doc_id": doc_id, "text": text, "metadata": meta})
+        else:
+            out.append({"doc_id": doc_id, "text": text, "metadata": meta})
+    # If filtered resulted empty but event_id specified, fallback to unfiltered top_k
+    if wanted_event_id and not out:
+        for i in range(len(res["ids"][0])):
+            meta = res["metadatas"][0][i] if res.get("metadatas") else {}
+            doc_id = res["ids"][0][i]
+            text = res["documents"][0][i] if res.get("documents") else ""
+            if isinstance(meta, dict):
+                meta.setdefault("doc_id", doc_id)
+            out.append({"doc_id": doc_id, "text": text, "metadata": meta})
     return out
