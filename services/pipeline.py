@@ -13,15 +13,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import V3 components
 from services.rag_engine import SimpleRAGEngine
-from services.llm_task_generator import LLMTaskGenerator
-from services.task_generator_v3 import (
+from services.llm_generator import LLMGenerator
+from services.task_generator import (
     calculate_available_workers,
     distribute_workers_to_departments,
     ACTION_TEMPLATES,
-    get_tier_multiplier
 )
 from services.risk_generator import generate_risks_by_department, generate_overall_risks
-from venue_classifier import classify_venue, VenueTier
+from venue_classifier import classify_venue, VenueTier, get_tier_multiplier
 from utils.department_normalizer import normalize_department, normalize_departments, get_department_bucket  # NEW IMPORT
 
 def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, Any]:
@@ -173,7 +172,7 @@ def run_pipeline_with_rag(
     # Initialize LLM generator (optional)
     llm_gen = None
     if use_llm:
-        llm_gen = LLMTaskGenerator()
+        llm_gen = LLMGenerator()
         if not llm_gen.client:
             print("⚠️ LLM not available, falling back to templates")
             use_llm = False

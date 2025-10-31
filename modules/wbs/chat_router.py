@@ -39,8 +39,16 @@ async def send_message(chat_input: ChatInput) -> Dict[str, Any]:
             session_id=session_id
         )
         
-        # Determine state based on result content
-        state = result.get("state", "conversation")
+        # Determine state based on result content (backward compatible)
+        state = result.get("state")
+        if not state:
+            has_wbs = all(k in result for k in ["epics_task", "tasks", "departments"]) or "wbs" in result
+            if has_wbs:
+                state = "planning_complete"
+            elif "extracted_info" in result:
+                state = "planning_partial"
+            else:
+                state = "conversation"
         
         # Build base response
         response = {
@@ -67,6 +75,9 @@ async def send_message(chat_input: ChatInput) -> Dict[str, Any]:
                 # Optional: Add RAG insights if available
                 if "rag_insights" in result:
                     response["rag_insights"] = result["rag_insights"]
+            elif "wbs" in result and isinstance(result["wbs"], dict):
+                # Some versions return a nested wbs object directly
+                response["wbs"] = result["wbs"]
             else:
                 # Incomplete WBS - should not happen, but handle gracefully
                 response["state"] = "error"
