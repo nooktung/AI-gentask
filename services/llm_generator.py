@@ -7,6 +7,11 @@ from typing import List, Dict, Any, Optional
 import os
 from openai import OpenAI
 import json
+import sys
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.department_info import get_department_info, get_department_responsibilities
 
 
 class LLMGenerator:
@@ -105,7 +110,7 @@ class LLMGenerator:
             return tasks
             
         except Exception as e:
-            print(f"LLM generation failed: {e}")
+            # LLM generation failed
             # Fallback to base templates
             return base_tasks or []
     
@@ -127,6 +132,15 @@ class LLMGenerator:
         special_reqs = rag_context.get("special_requirements", [])
         venue_reqs = rag_context.get("venue_specific_requirements", [])
         
+        # Get department responsibilities
+        dept_responsibilities = get_department_responsibilities(department)
+        dept_info = get_department_info(department)
+        dept_responsibilities_str = ""
+        if dept_responsibilities:
+            dept_responsibilities_str = "\n### Department Responsibilities:\n"
+            for i, resp in enumerate(dept_responsibilities, 1):
+                dept_responsibilities_str += f"{i}. {resp}\n"
+        
         # Base tasks context
         base_tasks_str = ""
         if base_tasks:
@@ -142,6 +156,7 @@ class LLMGenerator:
 - Team Size: {event_context.get('headcount_total', 0)} total ({num_workers} workers in this department)
 - Event Date: {event_context.get('event_date', 'N/A')}
 - Special Requirements: {', '.join(event_context.get('special_requirements', []))}
+{dept_responsibilities_str}
 
 ### Insights from Similar Past Events:
 Key successful tasks from similar events:
@@ -296,7 +311,7 @@ Output JSON:
             return base_tasks
             
         except Exception as e:
-            print(f"Enhancement failed: {e}")
+            # Enhancement failed
             return base_tasks
     
     def get_total_cost(self) -> float:

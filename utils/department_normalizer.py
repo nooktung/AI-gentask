@@ -13,6 +13,7 @@ STANDARD_DEPARTMENTS = {
     "chuyên môn": "Chuyên môn",
     "tài chính": "Tài chính",
     "đối ngoại": "Đối ngoại",
+    "thiết kế": "Thiết kế",
 }
 
 
@@ -37,6 +38,10 @@ DEPARTMENT_KEYWORDS = {
     "đối ngoại": [
         "đối ngoại", "doi ngoai", "doingoai", "external", 
         "relations", "external relations", "pr"
+    ],
+    "thiết kế": [
+        "thiết kế", "thiet ke", "thietke", "thiết kê", "thiet ke", 
+        "design", "graphic design", "creative", "sáng tạo", "sang tao"
     ],
 }
 

@@ -87,7 +87,14 @@ async def send_message(chat_input: ChatInput) -> Dict[str, Any]:
         return response
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi xử lý: {str(e)}")
+        import traceback
+        error_detail = str(e)
+        error_traceback = traceback.format_exc()
+        # Error in chat endpoint
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Lỗi xử lý: {error_detail}"
+        )
 
 
 @router.get("/sessions/{session_id}/history")

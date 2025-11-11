@@ -6,7 +6,7 @@ Each task assigned to specific person (except HOOC and HODs who manage epics)
 
 from typing import List, Dict, Any, Tuple
 from datetime import datetime, timedelta
-from venue_classifier import VenueTier, get_tier_multiplier, scale_complexity
+from services.venue_classifier import VenueTier, get_tier_multiplier, scale_complexity
 
 
 # Action templates - ALL with action verbs
@@ -378,6 +378,78 @@ ACTION_TEMPLATES = {
             "depends_on": ["Chuẩn bị phương án backup"]
         },
     ],
+    "Thiết kế & sáng tạo nội dung": [
+        {
+            "name": "Nghiên cứu concept & moodboard",
+            "description": "Tìm hiểu phong cách, màu sắc, typography phù hợp với sự kiện. Thu thập tài liệu tham khảo, tạo moodboard, xác định hướng thiết kế chính",
+            "priority": "high",
+            "duration_days": 2,
+            "depends_on": []
+        },
+        {
+            "name": "Thiết kế Key Visual chính",
+            "description": "Thiết kế logo, bảng màu, typography, phong cách visual cho toàn bộ ấn phẩm. Tạo bộ nhận diện thương hiệu nhất quán cho sự kiện",
+            "priority": "high",
+            "duration_days": 4,
+            "depends_on": ["Nghiên cứu concept & moodboard"]
+        },
+        {
+            "name": "Thiết kế poster & banner",
+            "description": "Thiết kế poster A3, banner, standee, backdrop theo Key Visual đã được phê duyệt. Đảm bảo chất lượng in ấn và tính nhất quán",
+            "priority": "high",
+            "duration_days": 3,
+            "depends_on": ["Thiết kế Key Visual chính"]
+        },
+        {
+            "name": "Thiết kế ấn phẩm social media",
+            "description": "Thiết kế bài đăng Facebook, Instagram, LinkedIn, email templates. Tối ưu cho từng nền tảng, đảm bảo responsive và dễ đọc",
+            "priority": "medium",
+            "duration_days": 3,
+            "depends_on": ["Thiết kế Key Visual chính"]
+        },
+        {
+            "name": "Thiết kế backdrop & sân khấu",
+            "description": "Thiết kế backdrop chính, thiết kế sân khấu, trang trí lối vào. Phối hợp với ban hậu cần để đảm bảo khả thi",
+            "priority": "high",
+            "duration_days": 4,
+            "depends_on": ["Thiết kế Key Visual chính"]
+        },
+        {
+            "name": "Thiết kế name tag & lanyard",
+            "description": "Thiết kế name tag, lanyard, badge cho người tham gia. Đảm bảo dễ đọc, đẹp mắt và phù hợp với bộ nhận diện",
+            "priority": "medium",
+            "duration_days": 2,
+            "depends_on": ["Thiết kế Key Visual chính"]
+        },
+        {
+            "name": "Thiết kế tài liệu sự kiện",
+            "description": "Thiết kế chương trình, brochure, handout, giấy chứng nhận. Đảm bảo thông tin đầy đủ và dễ đọc",
+            "priority": "medium",
+            "duration_days": 3,
+            "depends_on": ["Thiết kế Key Visual chính"]
+        },
+        {
+            "name": "Chuẩn bị file in ấn",
+            "description": "Xuất file sẵn sàng in, kiểm tra độ phân giải, chế độ màu, bleed. Đảm bảo chất lượng in ấn tốt nhất",
+            "priority": "high",
+            "duration_days": 1,
+            "depends_on": ["Thiết kế poster & banner", "Thiết kế backdrop & sân khấu"]
+        },
+        {
+            "name": "Review & chỉnh sửa theo feedback",
+            "description": "Nhận feedback từ ban lãnh đạo và các bên liên quan, chỉnh sửa thiết kế, hoàn thiện artwork cuối cùng",
+            "priority": "medium",
+            "duration_days": 2,
+            "depends_on": ["Chuẩn bị file in ấn"]
+        },
+        {
+            "name": "Bàn giao file cuối cùng",
+            "description": "Xuất file cuối cùng, tổ chức thư mục, bàn giao cho bộ phận sản xuất. Đảm bảo đầy đủ tất cả các file cần thiết",
+            "priority": "low",
+            "duration_days": 1,
+            "depends_on": ["Review & chỉnh sửa theo feedback"]
+        },
+    ],
 }
 
 
@@ -432,6 +504,7 @@ def distribute_workers_to_departments(
         "chuyên môn": 1.3,
         "tài chính": 0.8,
         "đối ngoại": 1.0,
+        "thiết kế": 1.1,
     }
     
     # Normalize department names and get weights
@@ -629,6 +702,8 @@ def _normalize_dept(dept: str) -> str:
         return "tài chính"
     if any(k in dept_lower for k in ["đối ngoại", "external"]):
         return "đối ngoại"
+    if any(k in dept_lower for k in ["thiết kế", "thiet ke", "design", "sáng tạo", "sang tao"]):
+        return "thiết kế"
     
     return dept
 
@@ -676,7 +751,7 @@ def _get_generic_templates() -> List[Dict[str, Any]]:
 
 # Example usage
 if __name__ == "__main__":
-    from venue_classifier import classify_venue
+    from services.venue_classifier import classify_venue
     
     # Test with realistic scenario
     print("="*70)

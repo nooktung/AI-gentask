@@ -7,6 +7,17 @@ from typing import List, Dict, Any, Optional
 import json
 from datetime import datetime
 import numpy as np
+import sys
+import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.department_info import (
+    get_department_info,
+    get_department_responsibilities,
+    is_department_for_event,
+    get_all_departments_for_event
+)
 
 
 class SimpleRAGEngine:
@@ -324,7 +335,7 @@ class SimpleRAGEngine:
                 json.dump(self.knowledge_base, f, ensure_ascii=False, indent=2)
             return True
         except Exception as e:
-            print(f"Error saving knowledge base: {e}")
+            # Error saving knowledge base
             return False
     
     def get_venue_specific_requirements(self, venue_tier: str) -> List[str]:
@@ -393,6 +404,54 @@ class SimpleRAGEngine:
             best_practices[key] = list(dict.fromkeys(best_practices[key]))
         
         return best_practices
+    
+    def get_department_context(
+        self,
+        departments: List[str],
+        event_type: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Lấy thông tin context về các departments cho event
+        
+        Args:
+            departments: List tên departments
+            event_type: Loại sự kiện
+            
+        Returns:
+            Dict với thông tin departments và responsibilities
+        """
+        context = {
+            "departments": [],
+            "total_departments": len(departments),
+            "event_type": event_type
+        }
+        
+        for dept in departments:
+            dept_info = get_department_info(dept)
+            if dept_info:
+                # Check if department is relevant for this event
+                is_relevant = is_department_for_event(dept, event_type)
+                
+                context["departments"].append({
+                    "name": dept_info["display_name"],
+                    "normalized_name": dept_info["normalized_name"],
+                    "responsibilities": dept_info["responsibilities"],
+                    "special_events": dept_info["special_events"],
+                    "is_relevant_for_event": is_relevant,
+                    "keywords": dept_info["keywords"]
+                })
+            else:
+                # Unknown department - add with minimal info
+                context["departments"].append({
+                    "name": dept,
+                    "normalized_name": dept.lower(),
+                    "responsibilities": [],
+                    "special_events": [],
+                    "is_relevant_for_event": True,
+                    "keywords": []
+                })
+        
+        return context
 
 
 # Example usage

@@ -361,7 +361,7 @@ Trả về JSON với các trường (chỉ khi có):
                 return merged
                 
             except Exception as e:
-                print(f"LLM extraction error: {e}")
+                # LLM extraction error
                 return current_data
         
         # Fallback to regex
@@ -473,6 +473,7 @@ Trả về JSON với các trường (chỉ khi có):
             "marketing": ["marketing", "maketing", "media", "truyền thông", "truyen thong"],  # Added "maketing" typo
             "chuyên môn": ["chuyên môn", "chuyen mon", "technical", "kỹ thuật", "ky thuat"],
             "tài chính": ["tài chính", "tai chinh", "finance", "tai chinh"],
+            "thiết kế": ["thiết kế", "thiet ke", "design", "sáng tạo", "sang tao", "graphic"],
         }
         
         found_depts = []
@@ -491,6 +492,9 @@ Trả về JSON với các trường (chỉ khi có):
                 elif dept_name == "tài chính":
                     if "Tài chính" not in found_depts:
                         found_depts.append("Tài chính")
+                elif dept_name == "thiết kế":
+                    if "Thiết kế" not in found_depts:
+                        found_depts.append("Thiết kế")
         
         if found_depts:
             info["departments"] = found_depts  # Already unique
@@ -712,6 +716,6 @@ if __name__ == "__main__":
     ]
     
     for msg in test_messages:
-        print(f"\n>>> USER: {msg}")
+        # User message
         response = processor.process_message(msg, session_id)
         print(f"<<< AI: {response['message'][:200]}...")
