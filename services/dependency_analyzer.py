@@ -36,7 +36,7 @@ def analyze_dependencies(
     """
     task_dict = {t["task_id"]: t for t in tasks}
     
-    # Build dependency graph
+    # Build dependency graph (explicit)
     dependency_graph = defaultdict(list)
     dependency_types = defaultdict(dict)
     lead_times = defaultdict(dict)
@@ -61,6 +61,14 @@ def analyze_dependencies(
                         task, task_dict[dep_id], event_context
                     )
                     lead_times[task_id][dep_id] = lead_time
+
+    # Implicit business-rule dependencies (cross-epic)
+    implicit_map = _infer_implicit_dependencies(tasks, event_context)
+    for task_id, inferred_dep_ids in implicit_map.items():
+        for dep_id in inferred_dep_ids:
+            if dep_id not in dependency_graph[task_id]:
+                dependency_graph[task_id].append(dep_id)
+                dependency_types[task_id][dep_id] = DependencyType.LOGICAL
     
     # Tìm dependency chains
     chains = _find_dependency_chains(dependency_graph, task_dict)
@@ -77,6 +85,54 @@ def analyze_dependencies(
         "has_cycles": len(cycles) > 0
     }
 
+
+def _infer_implicit_dependencies(
+    tasks: List[Dict[str, Any]],
+    event_context: Dict[str, Any] = None
+) -> Dict[str, List[str]]:
+    """
+    Suy luận implicit dependencies theo nghiệp vụ phổ biến:
+    - Design → Setup
+    - Key Visual/Concept approval → triển khai marketing
+    - Venue booking/Khảo sát → Technical setup/test
+    """
+    task_map_by_name = {t.get("name", "").lower(): t.get("task_id") for t in tasks}
+    result = defaultdict(list)
+
+    # Helpers để tìm task id theo tên chứa keyword
+    def find_task_ids_with_keywords(keywords: List[str]) -> List[str]:
+        ids = []
+        for name_lower, tid in task_map_by_name.items():
+            if any(kw in name_lower for kw in keywords):
+                ids.append(tid)
+        return ids
+
+    design_ids = find_task_ids_with_keywords(["thiết kế", "design", "key visual", "backdrop"])
+    setup_ids = find_task_ids_with_keywords(["lắp đặt", "setup", "install", "thi công"])
+    marketing_impl_ids = find_task_ids_with_keywords(["triển khai", "chiến dịch", "campaign", "chạy ads"])
+    approval_ids = find_task_ids_with_keywords(["phê duyệt", "approval", "duyệt", "ký duyệt"])
+    venue_ids = find_task_ids_with_keywords(["booking", "đặt địa điểm", "khảo sát", "survey", "venue"])
+    technical_ids = find_task_ids_with_keywords(["test", "cài đặt", "kỹ thuật", "livestream", "âm thanh", "ánh sáng"])
+
+    # Rule 1: Setup phụ thuộc Design
+    for sid in setup_ids:
+        for did in design_ids:
+            if did not in result[sid]:
+                result[sid].append(did)
+
+    # Rule 2: Marketing triển khai phụ thuộc Approval/Key Visual
+    for mid in marketing_impl_ids:
+        for aid in approval_ids + design_ids:
+            if aid not in result[mid]:
+                result[mid].append(aid)
+
+    # Rule 3: Technical setup/test phụ thuộc Venue booking/Khảo sát
+    for tid in technical_ids:
+        for vid in venue_ids:
+            if vid not in result[tid]:
+                result[tid].append(vid)
+
+    return dict(result)
 
 def _classify_dependency_type(
     task: Dict[str, Any],

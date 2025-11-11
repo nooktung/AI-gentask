@@ -246,6 +246,12 @@ def generate_risks_by_department(
                     "base_level": "high",
                     "description": "Hệ thống âm thanh không đáp ứng yêu cầu của nghệ sĩ"
                 },
+                {
+                    "id": "HC-CON-003",
+                    "title": "Sân khấu không đạt tải trọng an toàn",
+                    "base_level": "critical",
+                    "description": "Sập sân khấu do quá tải, nguy cơ tai nạn nghiêm trọng"
+                }
             ],
             "chuyên môn": [
                 {
@@ -254,7 +260,21 @@ def generate_risks_by_department(
                     "base_level": "medium",
                     "description": "Nghệ sĩ cần thời gian soundcheck nhưng bị giới hạn"
                 },
+                {
+                    "id": "CM-CON-002",
+                    "title": "Livestream bị gián đoạn do băng thông không đủ",
+                    "base_level": "high",
+                    "description": "Internet không đủ cho streaming 1080p/4K, cần đường truyền dự phòng"
+                }
             ],
+            "marketing": [
+                {
+                    "id": "MKT-CON-001",
+                    "title": "Vi phạm bản quyền âm nhạc trong promotional content",
+                    "base_level": "high",
+                    "description": "Sử dụng nhạc không có license trong video promo"
+                }
+            ]
         },
         "career_fair": {
             "hậu cần": [
@@ -270,6 +290,12 @@ def generate_risks_by_department(
                     "base_level": "medium",
                     "description": "Sinh viên tập trung quá đông tại cổng vào"
                 },
+                {
+                    "id": "HC-CF-003",
+                    "title": "Không đủ điện/nối mạng cho booth",
+                    "base_level": "medium",
+                    "description": "Thiếu ổ điện, dây mạng khiến booth hoạt động kém hiệu quả"
+                }
             ],
             "marketing": [
                 {
@@ -278,7 +304,43 @@ def generate_risks_by_department(
                     "base_level": "medium",
                     "description": "Sinh viên không biết về sự kiện, số lượng tham dự thấp"
                 },
+                {
+                    "id": "MKT-CF-002",
+                    "title": "Tỷ lệ no-show cao do truyền thông không đủ hấp dẫn",
+                    "base_level": "medium",
+                    "description": "Nội dung không hấp dẫn, call-to-action yếu"
+                }
             ],
+        },
+        "food_festival": {
+            "hậu cần": [
+                {
+                    "id": "HC-FOOD-001",
+                    "title": "Giấy phép ATVSTP không được duyệt đúng hạn",
+                    "base_level": "critical",
+                    "description": "Không đủ điều kiện an toàn thực phẩm theo quy định"
+                },
+                {
+                    "id": "HC-FOOD-002",
+                    "title": "Ngộ độc thực phẩm từ vendor",
+                    "base_level": "critical",
+                    "description": "Food poisoning gây ảnh hưởng nghiêm trọng đến người tham dự"
+                },
+                {
+                    "id": "HC-FOOD-003",
+                    "title": "Thiếu khu vực rửa tay/vệ sinh",
+                    "base_level": "high",
+                    "description": "Không đủ handwashing stations, vi phạm quy định"
+                }
+            ],
+            "tài chính": [
+                {
+                    "id": "TC-FOOD-001",
+                    "title": "Vendor yêu cầu phần chia doanh thu cao",
+                    "base_level": "medium",
+                    "description": "Tỷ lệ chia sẻ doanh thu tăng so với dự kiến, ảnh hưởng lợi nhuận"
+                }
+            ]
         },
         "conference": {
             "chuyên môn": [

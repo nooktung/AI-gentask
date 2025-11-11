@@ -146,19 +146,31 @@ class ChatProcessor:
     
     def _handle_greeting(self, message: str, session: Dict[str, Any]) -> Dict[str, Any]:
         """Handle greeting messages"""
-        greeting_responses = [
-            "Xin chào! 👋 Tôi là AI Assistant giúp bạn lập kế hoạch và quản lý sự kiện.",
-            "Tôi có thể giúp bạn:",
-            "• Tạo WBS (Work Breakdown Structure) cho sự kiện",
-            "• Phân công công việc theo từng ban",
-            "• Phân tích rủi ro và đề xuất giải pháp",
-            "• Trả lời các câu hỏi về tiến độ sự kiện",
-            "",
-            "Bạn muốn bắt đầu bằng cách nào?"
+        hour = datetime.now().hour
+        if hour < 12:
+            time_greeting = "Chào buổi sáng"
+        elif hour < 18:
+            time_greeting = "Chào buổi chiều"
+        else:
+            time_greeting = "Chào buổi tối"
+
+        casual_responses = [
+            f"{time_greeting}! 😊 Mình là trợ lý giúp bạn plan sự kiện.",
+            "Hi bạn! 👋 Mình có thể giúp gì cho sự kiện của bạn không?",
+            f"{time_greeting}! Bạn đang muốn tổ chức sự kiện gì nhỉ?"
         ]
-        
+
+        message_text = (
+            f"{casual_responses[0]}\n\n"
+            "💡 Mình có thể giúp bạn:\n"
+            "• Tạo WBS chi tiết\n"
+            "• Phân công tasks và đề xuất nhân sự\n"
+            "• Phân tích rủi ro và kế hoạch giảm thiểu\n\n"
+            "Kể cho mình nghe về sự kiện nhé! 🎉"
+        )
+
         return {
-            "message": "\n".join(greeting_responses),
+            "message": message_text,
             "data": None
         }
     
@@ -191,6 +203,10 @@ class ChatProcessor:
             
             # Generate response message
             response_msg = self._format_wbs_summary(event_data, wbs_result)
+
+            # Context-aware note for large events
+            if (event_data.get("headcount_total", 0) or 0) >= 200:
+                response_msg += "\n\n🎯 Lưu ý: Đây là sự kiện quy mô lớn, mình đã tăng mức độ phân công và đề xuất team size cao hơn để đảm bảo chất lượng."
             
             # Return with departments containing full task info
             return {

@@ -521,12 +521,13 @@ def run_pipeline_with_rag(
                 duration_days=duration_days,
                 venue_tier=venue_tier,
                 has_critical_dependencies=False,  # Will be updated after CPM
-                department=department  # Pass department name for special handling (e.g., tài chính)
+                department=department,  # Pass department name for special handling (e.g., tài chính)
+                headcount_total=headcount_total
             )
             task["suggested_team_size"] = suggested_size
             
-            # Calculate days before event based on priority
-            days_before_event = _calculate_days_before_event(priority, duration_days)
+            # Calculate days before event based on priority (with buffers and deps)
+            days_before_event = _calculate_days_before_event(priority, duration_days, has_dependencies=bool(depends_on_ids))
             
             try:
                 event_dt = datetime.strptime(event_date, "%Y-%m-%d")
@@ -640,7 +641,8 @@ def run_pipeline_with_rag(
                 duration_days=task.get("duration_days", 1),
                 venue_tier=venue_tier,
                 has_critical_dependencies=has_critical_deps,
-                department=task_department  # Pass department for special handling
+                department=task_department,  # Pass department for special handling
+                headcount_total=headcount_total
             )
             task["suggested_team_size"] = suggested_size
     
@@ -748,15 +750,16 @@ def run_pipeline_with_rag(
     return result
 
 
-def _calculate_days_before_event(priority: str, duration: int) -> int:
-    """Calculate how many days before event this task should be completed"""
+def _calculate_days_before_event(priority: str, duration: int, has_dependencies: bool = False) -> int:
+    """Calculate how many days before event this task should be completed with safer buffers"""
     base_days = {
-        "critical": 1,
-        "high": 5,
-        "medium": 10,
-        "low": 15,
+        "critical": 3,
+        "high": 7,
+        "medium": 14,
+        "low": 21,
     }
-    return base_days.get(priority, 7) + duration
+    extra = 2 if has_dependencies else 0
+    return base_days.get(priority, 7) + duration + extra
 
 
 def _priority_to_complexity(priority: str) -> str:

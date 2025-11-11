@@ -82,7 +82,8 @@ def calculate_cpm(
         else:
             # ES = max(EF của tất cả predecessors)
             max_ef = max(ef.get(dep_id, start_dt) for dep_id in depends_on)
-            es[task_id] = max_ef
+            # Buffer 1 ngày giữa các dependencies để an toàn
+            es[task_id] = max_ef + timedelta(days=1)
         
         # EF = ES + duration - 1 (nếu tính theo ngày)
         ef[task_id] = es[task_id] + timedelta(days=duration - 1)
@@ -116,11 +117,10 @@ def calculate_cpm(
         if successors:
             # LF = min(LS của tất cả successors)
             # LS của successor = LF của successor - duration của successor + 1
-            # Nhưng vì tính từ cuối, ta dùng: LF = min(LF của successors) - 1
-            # (vì successor bắt đầu ngay sau khi task này kết thúc)
+            # Vì có buffer 1 ngày ở forward pass, ở backward pass giữ buffer tương ứng
             min_successor_lf = min(lf.get(succ_id, project_end_date) for succ_id in successors)
-            # LF của task này = min(LF của successors) - 1 (để successor bắt đầu ngay sau)
-            lf[task_id] = min_successor_lf - timedelta(days=1)
+            # LF của task này = min(LF của successors) - 2 (1 ngày hoàn tất + 1 ngày buffer)
+            lf[task_id] = min_successor_lf - timedelta(days=2)
         # Nếu không có successors, giữ nguyên project_end_date
         
         # LS = LF - duration + 1

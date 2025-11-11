@@ -90,7 +90,8 @@ def calculate_suggested_team_size(
     duration_days: int = 1,
     venue_tier: VenueTier = None,
     has_critical_dependencies: bool = False,
-    department: str = None
+    department: str = None,
+    headcount_total: int = 50
 ) -> int:
     """
     Tính suggested_team_size dựa trên complexity và department
@@ -101,30 +102,39 @@ def calculate_suggested_team_size(
         venue_tier: Venue tier
         has_critical_dependencies: Có dependencies trên critical path không
         department: Tên department (để kiểm tra ban tài chính)
+        headcount_total: Tổng headcount (để scale upper-bound hợp lý)
         
     Returns:
         int: Team size (1-6, tùy department)
     """
-    # Đặc biệt cho ban tài chính/kế toán: 3-6 người
+    # Đặc biệt cho ban tài chính/kế toán: 3-6 người (ưu tiên cross-check)
     if department:
         dept_lower = department.lower()
         if any(kw in dept_lower for kw in ["tài chính", "tai chinh", "finance", "kế toán", "ke toan", "accounting"]):
-            # Ban tài chính: 3-6 người, random
-            return random.randint(3, 6)
+            # Ban tài chính: 3-6 người, không dưới 3
+            base_min, base_max = 3, 6
+            # Headcount lớn → có thể tăng upper bound hợp lý
+            if headcount_total >= 200:
+                base_max = 6
+            elif headcount_total >= 100:
+                base_max = min(6, base_max + 0)  # giữ nguyên trần
+            # Duration/urgency điều chỉnh nhẹ
+            size = random.randint(base_min, base_max)
+            if duration_days <= 1:
+                size = min(base_max, size + 1)
+            if has_critical_dependencies:
+                size = min(base_max, size + 1)
+            return max(base_min, min(base_max, size))
     
-    # Base team size từ complexity
-    # Low: 1 người
-    # Medium: 2-3 người (random)
-    # High: 4-5 người (random)
-    # Critical: 4-5 người (random)
+    # Base team size từ complexity (không random cứng)
     if complexity == "low":
         team_size = 1
     elif complexity == "medium":
-        team_size = random.randint(2, 3)
+        team_size = 2
     elif complexity == "high":
-        team_size = random.randint(4, 5)
+        team_size = 3
     elif complexity == "critical":
-        team_size = random.randint(4, 5)
+        team_size = 4
     else:
         team_size = 2  # Default
     
@@ -133,28 +143,37 @@ def calculate_suggested_team_size(
         tier_multiplier = get_tier_multiplier(venue_tier)
         if tier_multiplier >= 1.3:  # XL venue - có thể cần thêm 1 người
             if complexity in ["medium", "high", "critical"]:
-                team_size = min(5, team_size + 1)
+                team_size = team_size + 1
         elif tier_multiplier <= 0.8:  # S venue - có thể giảm 1 người
             if complexity in ["medium", "high"]:
-                team_size = max(1, team_size - 1)
+                team_size = team_size - 1
     
     # Duration adjustment (tasks dài cần nhiều người hơn)
     if duration_days >= 7 and complexity in ["medium", "high", "critical"]:
-        team_size = min(5, team_size + 1)
-    elif duration_days <= 1 and complexity == "medium":
-        team_size = max(2, team_size - 1)
+        team_size = team_size + 1
+    elif duration_days <= 1 and complexity in ["medium", "high", "critical"]:
+        team_size = team_size + 1  # Rush job → thêm người để rút ngắn
     
     # Critical dependencies adjustment
     if has_critical_dependencies and complexity in ["medium", "high"]:
-        team_size = min(5, team_size + 1)
+        team_size = team_size + 1
+
+    # Headcount scaling: sự kiện lớn → upper bound cao hơn một chút
+    if headcount_total >= 200:
+        max_cap = 8
+    elif headcount_total >= 100:
+        max_cap = 6
+    else:
+        max_cap = 5
     
     # Đảm bảo trong khoảng hợp lý
     if complexity == "low":
         return 1
     elif complexity == "medium":
-        return max(2, min(3, team_size))
+        return max(2, min(4, team_size, max_cap))
     else:  # high, critical
-        return max(4, min(5, team_size))
+        base_min = 3 if complexity == "high" else 4
+        return max(base_min, min(max_cap, team_size))
 
 
 def get_complexity_weight(complexity: str) -> float:
