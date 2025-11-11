@@ -11,6 +11,7 @@ UPDATED: Works with 'departments' containing full task info (no separate 'tasks'
 import re
 import json
 import os
+import random
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import pytz
@@ -52,6 +53,7 @@ class ChatProcessor:
                 "current_event": None,  # Current active event
                 "events": {},  # All events in this session {event_id: event_data}
                 "context": "greeting",  # greeting, planning, querying
+                "style": {"greeting_count": 0},
             }
         
         session = self.sessions[session_id]
@@ -161,6 +163,8 @@ class ChatProcessor:
     
     def _handle_greeting(self, message: str, session: Dict[str, Any]) -> Dict[str, Any]:
         """Handle greeting messages"""
+        style = session.setdefault("style", {"greeting_count": 0})
+        style["greeting_count"] += 1
         hour = datetime.now().hour
         if hour < 12:
             time_greeting = "Chào buổi sáng"
@@ -169,20 +173,26 @@ class ChatProcessor:
         else:
             time_greeting = "Chào buổi tối"
 
-        casual_responses = [
-            f"{time_greeting}! 😊 Mình là trợ lý giúp bạn plan sự kiện.",
-            "Hi bạn! 👋 Mình có thể giúp gì cho sự kiện của bạn không?",
-            f"{time_greeting}! Bạn đang muốn tổ chức sự kiện gì nhỉ?"
+        if style["greeting_count"] == 1:
+            opening_variants = [
+                f"{time_greeting}! 😊 Mình là trợ lý giúp bạn plan sự kiện.",
+                f"{time_greeting}! Rất vui được đồng hành cùng bạn lên kế hoạch 🎉",
+                f"{time_greeting}! 👋 Chuẩn bị cho một sự kiện đỉnh cao nhé?"
+            ]
+        else:
+            opening_variants = [
+                "Chào bạn lần nữa! 👋 Mình sẵn sàng hỗ trợ tiếp đây.",
+                "Hey, quay lại rồi nè! Bạn đang cần gì cho event?",
+                "Xin chào! Tiếp tục kế hoạch nào 😄"
+            ]
+
+        helper_texts = [
+            "💡 Mình có thể giúp bạn:\n• Tạo WBS chi tiết\n• Phân công tasks & đề xuất nhân sự\n• Phân tích rủi ro & kế hoạch giảm thiểu",
+            "📋 Mình hỗ trợ được những việc này:\n• Phân rã công việc từng ban\n• Sắp timeline & deadline hợp lý\n• Cảnh báo rủi ro đặc thù sự kiện",
+            "🚀 Những gì mình làm được:\n• Generate WBS hoàn chỉnh\n• Gợi ý team size theo scope\n• Đề xuất risk & mitigation plan"
         ]
 
-        message_text = (
-            f"{casual_responses[0]}\n\n"
-            "💡 Mình có thể giúp bạn:\n"
-            "• Tạo WBS chi tiết\n"
-            "• Phân công tasks và đề xuất nhân sự\n"
-            "• Phân tích rủi ro và kế hoạch giảm thiểu\n\n"
-            "Kể cho mình nghe về sự kiện nhé! 🎉"
-        )
+        message_text = f"{random.choice(opening_variants)}\n\n{random.choice(helper_texts)}\n\nKể cho mình nghe về sự kiện nhé! 🎉"
 
         return {
             "message": message_text,
@@ -587,7 +597,12 @@ Trả về JSON với các trường (chỉ khi có):
             missing.append("các ban tham gia (Marketing, Hậu cần...)")
         
         if not missing:
-            return "Cảm ơn bạn! Tôi đã có đủ thông tin."
+            completion_responses = [
+                "Perfect! Đủ thông tin rồi, để mình làm magic nhé! ✨",
+                "Ngon! Tất cả đã ready. Bắt đầu thôi! 🚀",
+                "Cảm ơn bạn! Mình đã có đủ info để tạo WBS rồi 💪",
+            ]
+            return random.choice(completion_responses)
         
         known_info = []
         if data.get("event_name"):
@@ -595,16 +610,35 @@ Trả về JSON với các trường (chỉ khi có):
         if data.get("venue"):
             known_info.append(f"tại {data['venue']}")
         
-        context = f"Cảm ơn bạn đã cung cấp thông tin về {', '.join(known_info)}! " if known_info else ""
-        
         missing_text = ", ".join(missing)
+        info_count = sum(1 for value in [
+            data.get("event_name"),
+            data.get("event_type"),
+            data.get("event_date"),
+            data.get("venue"),
+            data.get("headcount_total"),
+            data.get("departments")
+        ] if value)
+
+        if info_count <= 2:
+            prompts = [
+                f"Chào bạn! Để giúp bạn plan event chuẩn nhất, mình cần biết thêm về {missing_text} nhé 🎯",
+                f"Hey! Kể mình nghe thêm về {missing_text} để mình lên kế hoạch đúng ý bạn nha 😊",
+                f"Để bắt đầu, mình cần vài thông tin như {missing_text}. Bạn chia sẻ giúp nhé!"
+            ]
+        else:
+            prompts = [
+                f"Oke, mình đã ghi nhận rồi. Còn {missing_text} thì sao nhỉ? 🤔",
+                f"Nice! Giờ cho mình thêm thông tin về {missing_text} nữa là đủ 👍",
+                f"Great progress! Bạn bổ sung thêm {missing_text} để mình chốt kế hoạch nha."
+            ]
         
-        return f"""{context}
-Để tạo kế hoạch chi tiết, tôi cần thêm thông tin về: **{missing_text}**
-
-Ví dụ: "Concert khai giảng ngày 25/12/2024 tại đường 30m, 50 người, có ban Marketing và Hậu cần"
-
-Bạn có thể cung cấp thêm không? 😊"""
+        examples = [
+            'Ví dụ: "Concert khai giảng ngày 25/12/2024 tại đường 30m, 50 người, các ban Marketing và Hậu cần".',
+            'Bạn có thể nói kiểu: "Career fair ngày 05/06/2025 tại hội trường Alpha, 200 người, có ban Đối ngoại và Tài chính".'
+        ]
+        
+        return f"{random.choice(prompts)}\n{random.choice(examples)}"
     
     def _format_wbs_summary(self, event_data: Dict[str, Any], wbs: Dict[str, Any]) -> str:
         """Format WBS summary message"""

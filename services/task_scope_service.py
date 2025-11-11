@@ -244,6 +244,7 @@ class TaskScopeCalculator:
         needed = target_task_count - current_task_count
         
         # Department-specific expansion patterns
+        # Expanded to support larger events (more templates per department)
         expansion_templates = {
             "hậu cần": [
                 {
@@ -270,6 +271,42 @@ class TaskScopeCalculator:
                     "priority": "low",
                     "duration_days": 1,
                 },
+                {
+                    "name": "Chuẩn bị phương án xử lý sự cố khẩn cấp",
+                    "description": "Emergency response protocol và contact list",
+                    "priority": "high",
+                    "duration_days": 1,
+                },
+                {
+                    "name": "Kiểm tra và bảo trì thiết bị trước sự kiện",
+                    "description": "Maintenance checklist và testing",
+                    "priority": "medium",
+                    "duration_days": 2,
+                },
+                {
+                    "name": "Chuẩn bị nhân sự hỗ trợ tại chỗ",
+                    "description": "Staffing plan và shift schedule",
+                    "priority": "high",
+                    "duration_days": 2,
+                },
+                {
+                    "name": "Setup hệ thống quản lý hàng đợi",
+                    "description": "Queue management cho check-in/registration",
+                    "priority": "medium",
+                    "duration_days": 1,
+                },
+                {
+                    "name": "Chuẩn bị khu vực nghỉ giải lao cho nhân viên",
+                    "description": "Staff break area và refreshments",
+                    "priority": "low",
+                    "duration_days": 1,
+                },
+                {
+                    "name": "Lập kế hoạch dọn dẹp và thu hồi sau sự kiện",
+                    "description": "Post-event cleanup và equipment return",
+                    "priority": "medium",
+                    "duration_days": 1,
+                },
             ],
             "marketing": [
                 {
@@ -290,6 +327,48 @@ class TaskScopeCalculator:
                     "priority": "low",
                     "duration_days": 2,
                 },
+                {
+                    "name": "Tạo video teaser cho sự kiện",
+                    "description": "Short video preview để tạo hype",
+                    "priority": "medium",
+                    "duration_days": 3,
+                },
+                {
+                    "name": "Setup landing page cho đăng ký",
+                    "description": "Event registration page và form",
+                    "priority": "high",
+                    "duration_days": 2,
+                },
+                {
+                    "name": "Chạy chiến dịch quảng cáo Facebook/Google",
+                    "description": "Paid ads để tăng reach",
+                    "priority": "high",
+                    "duration_days": 5,
+                },
+                {
+                    "name": "Tạo hashtag campaign cho social media",
+                    "description": "Branded hashtag và user-generated content",
+                    "priority": "medium",
+                    "duration_days": 2,
+                },
+                {
+                    "name": "Chuẩn bị email marketing sequence",
+                    "description": "Automated emails cho registrants",
+                    "priority": "medium",
+                    "duration_days": 3,
+                },
+                {
+                    "name": "Tổ chức minigame/contest trước sự kiện",
+                    "description": "Engagement activities để tăng awareness",
+                    "priority": "low",
+                    "duration_days": 3,
+                },
+                {
+                    "name": "Chuẩn bị live streaming setup",
+                    "description": "Streaming equipment và platform setup",
+                    "priority": "medium",
+                    "duration_days": 2,
+                },
             ],
             "chuyên môn": [
                 {
@@ -307,6 +386,48 @@ class TaskScopeCalculator:
                 {
                     "name": "Chuẩn bị troubleshooting guide",
                     "description": "Quick fix guide cho common issues",
+                    "priority": "low",
+                    "duration_days": 1,
+                },
+                {
+                    "name": "Test và calibrate hệ thống âm thanh",
+                    "description": "Sound system testing và fine-tuning",
+                    "priority": "high",
+                    "duration_days": 1,
+                },
+                {
+                    "name": "Setup hệ thống recording/streaming",
+                    "description": "Recording equipment và streaming setup",
+                    "priority": "medium",
+                    "duration_days": 2,
+                },
+                {
+                    "name": "Chuẩn bị backup equipment cho critical systems",
+                    "description": "Spare equipment cho AV, IT, lighting",
+                    "priority": "high",
+                    "duration_days": 1,
+                },
+                {
+                    "name": "Setup hệ thống network cho attendees",
+                    "description": "WiFi access và bandwidth management",
+                    "priority": "medium",
+                    "duration_days": 2,
+                },
+                {
+                    "name": "Chuẩn bị technical support team onsite",
+                    "description": "Tech support staff và shift schedule",
+                    "priority": "high",
+                    "duration_days": 1,
+                },
+                {
+                    "name": "Test compatibility với các thiết bị di động",
+                    "description": "Mobile device testing cho apps/streaming",
+                    "priority": "low",
+                    "duration_days": 1,
+                },
+                {
+                    "name": "Chuẩn bị documentation cho technical setup",
+                    "description": "Technical specs và setup guides",
                     "priority": "low",
                     "duration_days": 1,
                 },
@@ -375,7 +496,13 @@ class TaskScopeCalculator:
         
         dept_templates = expansion_templates.get(department, [])
         
-        # Return needed number of templates
+        if not dept_templates:
+            # No expansion templates available, return empty
+            return []
+        
+        # Return only unique templates (no variants, no cycling)
+        # If needed > available templates, return only what we have
+        # User doesn't want duplicate tasks with "(Phần X)" suffix
         return dept_templates[:needed]
 
 

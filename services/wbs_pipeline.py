@@ -5,7 +5,7 @@ Combines template reliability with LLM flexibility and RAG context awareness
 UPDATED: Only returns 'departments' with full task info (no separate 'tasks' field)
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 import os
 import sys
@@ -221,6 +221,7 @@ def run_pipeline_with_rag(
     used_names: set = set()
     # Global task name to task_id mapping (for cross-epic dependencies)
     global_task_map = {}
+    task_dependency_depth: Dict[str, int] = {}
 
     # Scope-based task targets per department
     scope_calculator = get_task_scope_calculator()
@@ -244,85 +245,100 @@ def run_pipeline_with_rag(
             {"name": f"Nhiệm vụ {epic_name}", "description": "", "priority": "medium", "duration_days": 1, "depends_on": []}
         ]
 
-        # Use LLM to generate event-specific tasks if available
-        # NOTE: LLM calls can be slow, so we only use LLM if explicitly requested
-        # Default mode is "enhance" which doesn't call LLM for task generation
-        selected_templates = base_templates
+        # Calculate target_task_count based on headcount (for all modes)
+        base_task_count = len(base_templates)
+        
+        # Minimum tasks per department: headcount_total / 3 (distributed across departments)
+        # This ensures large events get more tasks
+        min_tasks_per_dept = max(1, int(headcount_total / 3 / len(epics)))
+        
+        # Scale with event characteristics (headcount-based scaling)
+        if headcount_total >= 500:
+            event_multiplier = 5.0  # Very large events
+        elif headcount_total >= 300:
+            event_multiplier = 4.0
+        elif headcount_total >= 200:
+            event_multiplier = 3.0
+        elif headcount_total >= 100:
+            event_multiplier = 2.5
+        elif headcount_total >= 50:
+            event_multiplier = 2.0
+        else:
+            event_multiplier = 1.5
+        
+        tier_multiplier = get_tier_multiplier(venue_tier)
+        if tier_multiplier >= 1.3:
+            venue_multiplier = 1.5
+        elif tier_multiplier >= 1.1:
+            venue_multiplier = 1.3
+        else:
+            venue_multiplier = 1.1
+        
+        if event_type == "career_fair":
+            type_multiplier = 2.0
+        elif event_type in ["concert_opening", "conference"]:
+            type_multiplier = 1.5
+        else:
+            type_multiplier = 1.3
+        
+        dept_multiplier = 1.0 + (len(departments) - 1) * 0.15
+        calculated_target = int(base_task_count * event_multiplier * venue_multiplier * type_multiplier * dept_multiplier)
+        
+        # ALWAYS ensure target_task_count >= min_tasks_per_dept (headcount-based minimum)
+        # This is critical for large events (1000 people = 83+ tasks/department)
+        target_task_count = max(calculated_target, min_tasks_per_dept)
+        
+        # Hybrid approach: 50% LLM + 50% templates for speed
+        # Use LLM only for critical/complex tasks, templates for the rest
+        selected_templates = base_templates.copy()
+        
         if use_llm and llm_gen and llm_mode == "generate":
             try:
-                # Generate tasks with LLM + RAG context
-                # Limit to max 10 tasks per department to avoid timeout
-                limited_base_tasks = base_templates[:10] if len(base_templates) > 10 else base_templates
+                # Calculate how many tasks to generate with LLM (50% of target)
+                llm_target_count = max(1, int(target_task_count * 0.5))
+                template_count = target_task_count - llm_target_count
                 
+                # Select base tasks for LLM (prioritize critical/high priority ones)
+                # Sort by priority: critical > high > medium > low
+                priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+                sorted_base = sorted(
+                    base_templates,
+                    key=lambda t: priority_order.get(t.get("priority", "medium"), 2)
+                )
+                llm_base_tasks = sorted_base[:min(llm_target_count * 2, len(sorted_base))]
+                
+                # Generate LLM tasks (only for selected ones)
                 llm_tasks = llm_gen.generate_tasks_with_rag(
                     epic_name=epic_name,
                     department=department,
                     event_context=event_context,
                     rag_context=rag_context,
-                    num_workers=min(available_workers, 20),  # Limit context to avoid large prompts
-                    base_tasks=limited_base_tasks
+                    num_workers=min(available_workers, 20),
+                    base_tasks=llm_base_tasks[:10]  # Limit to 10 for LLM call
                 )
                 
                 if llm_tasks and len(llm_tasks) > 0:
-                    # Use LLM-generated tasks (event-specific)
-                    selected_templates = llm_tasks[:15]  # Limit to 15 tasks max
-                    # LLM generated tasks for department
+                    # Take LLM-generated tasks (up to llm_target_count)
+                    llm_selected = llm_tasks[:llm_target_count]
+                    
+                    # Get remaining tasks from templates (avoid duplicates)
+                    llm_names = {t.get("name", "").lower() for t in llm_selected}
+                    template_selected = [
+                        t for t in base_templates
+                        if t.get("name", "").lower() not in llm_names
+                    ][:template_count]
+                    
+                    # Combine: LLM tasks + template tasks
+                    selected_templates = llm_selected + template_selected
                 else:
-                    # Fallback to templates
-                    selected_templates = base_templates
+                    # LLM failed, use all templates
+                    selected_templates = base_templates[:target_task_count]
             except Exception as e:
                 # LLM generation failed, using templates
-                selected_templates = base_templates
+                selected_templates = base_templates[:target_task_count]
         else:
-            # No LLM, use all available templates and expand based on event size
-            # REQUIREMENT: Minimum tasks = headcount_total / 3
-            # Scale tasks based on event characteristics, not just workers
-            base_task_count = len(base_templates)
-            
-            # Calculate minimum required tasks per department
-            min_tasks_per_dept = max(1, int(headcount_total / 3 / len(epics)))
-            
-            # Scale with event characteristics (more aggressive scaling)
-            if headcount_total >= 300:
-                event_multiplier = 4.0  # Very large events need many tasks
-            elif headcount_total >= 200:
-                event_multiplier = 3.0
-            elif headcount_total >= 100:
-                event_multiplier = 2.0
-            elif headcount_total >= 50:
-                event_multiplier = 1.5
-            else:
-                event_multiplier = 1.2
-            
-            # Venue tier multiplier
-            tier_multiplier = get_tier_multiplier(venue_tier)
-            if tier_multiplier >= 1.3:  # XL
-                venue_multiplier = 1.5
-            elif tier_multiplier >= 1.1:  # L
-                venue_multiplier = 1.3
-            else:
-                venue_multiplier = 1.1
-            
-            # Event type multiplier (career_fair needs more tasks)
-            if event_type == "career_fair":
-                type_multiplier = 2.0  # Career fair needs many setup tasks
-            elif event_type in ["concert_opening", "conference"]:
-                type_multiplier = 1.5
-            else:
-                type_multiplier = 1.3
-            
-            # Department multiplier (more departments = more coordination tasks)
-            dept_multiplier = 1.0 + (len(departments) - 1) * 0.15  # +15% per additional dept
-            
-            # Calculate target based on multipliers
-            calculated_target = int(base_task_count * event_multiplier * venue_multiplier * type_multiplier * dept_multiplier)
-            
-            # Ensure minimum: at least headcount_total / 3 tasks per department
-            target_task_count = max(calculated_target, min_tasks_per_dept)
-            
-            # Use only base templates - NO variants, NO duplicates
-            # Limit to actual available templates to ensure uniqueness
-            selected_templates = base_templates.copy()
+            # No LLM, use all available templates
+            selected_templates = base_templates[:target_task_count] if target_task_count else base_templates.copy()
             
             # For career_fair, add specific tasks if they don't already exist
             if event_type == "career_fair":
@@ -449,39 +465,53 @@ def run_pipeline_with_rag(
                     if not is_duplicate:
                         selected_templates.append(cf_task)
                         existing_names.add(cf_name_lower)
-            
-            # NO variant creation - only use unique templates
-            # Scope-driven expansion if below target
-            target_count = max(len(selected_templates), scope_targets.get(normalized_dept, len(selected_templates)))
-            if len(selected_templates) < target_count:
-                add_templates = scope_calculator.get_task_expansion_strategy(
-                    current_task_count=len(selected_templates),
-                    target_task_count=target_count,
-                    department=normalized_dept,
-                    event_type=event_type
-                )
-                # Append additional templates while keeping names unique
-                existing_names = {t.get("name", "").lower() for t in selected_templates}
-                for t in add_templates:
-                    name_lower = t.get("name", "").lower()
-                    if name_lower and name_lower not in existing_names:
-                        selected_templates.append(t)
-                        existing_names.add(name_lower)
+        
+        # NO variant creation - only use unique templates
+        # Scope-driven expansion if below target (applies to both LLM and non-LLM modes)
+        # Use target_task_count (calculated from headcount) as primary target
+        # Merge with scope_targets for event-type specific adjustments
+        scope_target = scope_targets.get(normalized_dept, 0)
+        # Use the MAXIMUM of headcount-based target and scope-based target
+        # BUT: Always expand if below target_task_count (headcount-based requirement)
+        target_count = max(target_task_count, scope_target)
+        
+        if len(selected_templates) < target_count:
+            add_templates = scope_calculator.get_task_expansion_strategy(
+                current_task_count=len(selected_templates),
+                target_task_count=target_count,
+                department=normalized_dept,
+                event_type=event_type
+            )
+            # Append additional templates while keeping names unique
+            # Check both current epic templates AND global used_names to avoid duplicates
+            existing_names = {t.get("name", "").lower() for t in selected_templates}
+            # Also check global used_names to avoid cross-epic duplicates
+            existing_names.update(used_names)
+            for t in add_templates:
+                name_lower = t.get("name", "").lower()
+                if name_lower and name_lower not in existing_names:
+                    selected_templates.append(t)
+                    existing_names.add(name_lower)
+                    # CRITICAL: Update global used_names immediately to prevent duplicates in other epics
+                    used_names.add(name_lower)
 
         # Create task name to task_id mapping for this epic (to resolve depends_on)
         epic_task_map = {}
 
         # Generate tasks from selected templates
         # Process in order to resolve dependencies correctly
+        # Filter out duplicates BEFORE generating to avoid gaps in task_id
+        unique_templates = []
         for template in selected_templates:
             base_name = template.get("name", f"Nhiệm vụ {epic_name}")
-            
-            # Skip if already used (avoid duplicates - case-insensitive check)
             base_name_lower = base_name.lower()
-            if base_name_lower in used_names:
-                continue
-            
-            used_names.add(base_name_lower)
+            if base_name_lower not in used_names:
+                unique_templates.append(template)
+                used_names.add(base_name_lower)
+        
+        # Now generate tasks only from unique templates (no skipping = no gaps)
+        for template in unique_templates:
+            base_name = template.get("name", f"Nhiệm vụ {epic_name}")
 
             task_id = f"T-{task_counter:03d}"
             task_counter += 1
@@ -553,8 +583,21 @@ def run_pipeline_with_rag(
             )
             task["suggested_team_size"] = suggested_size
             
+            # Calculate dependency depth for buffer calculation
+            if depends_on_ids:
+                max_dep_depth = max(task_dependency_depth.get(dep_id, 0) for dep_id in depends_on_ids)
+                dependency_depth = max_dep_depth + 1
+            else:
+                dependency_depth = 0
+            task_dependency_depth[task_id] = dependency_depth
+
             # Calculate days before event based on priority (with buffers and deps)
-            days_before_event = _calculate_days_before_event(priority, duration_days, has_dependencies=bool(depends_on_ids))
+            days_before_event = _calculate_days_before_event(
+                priority,
+                duration_days,
+                has_dependencies=bool(depends_on_ids),
+                dependency_depth=dependency_depth
+            )
             
             try:
                 event_dt = datetime.strptime(event_date, "%Y-%m-%d")
@@ -589,7 +632,11 @@ def run_pipeline_with_rag(
     critical_path_tasks = set()
     sizing_stats = {}
     
+    dependency_warnings: List[str] = []
+
     if all_tasks:
+        all_tasks, dependency_warnings = _validate_dependencies(all_tasks)
+
         # Dependency Analysis (with error handling)
         try:
             dependency_analysis = analyze_dependencies(all_tasks, event_context)
@@ -682,7 +729,7 @@ def run_pipeline_with_rag(
                 available_workers=available_workers,
                 event_context=event_context
             )
-            # Update team sizes
+            # Update team sizes in all_tasks
             opt_map = {t["task_id"]: t for t in optimized_tasks}
             for task in all_tasks:
                 opt = opt_map.get(task["task_id"])
@@ -690,14 +737,59 @@ def run_pipeline_with_rag(
                     task["suggested_team_size"] = opt["suggested_team_size"]
                 if "suggested_team_size" not in task:
                     task["suggested_team_size"] = 1
+            
+            # CRITICAL: Update departments_output with normalized team sizes
+            # Rebuild departments_output from updated all_tasks
+            task_id_to_dept = {}
+            for dept, tasks in departments_output.items():
+                for task in tasks:
+                    task_id_to_dept[task["task_id"]] = dept
+            
+            # Rebuild departments_output
+            departments_output = {}
+            for task in all_tasks:
+                dept = task_id_to_dept.get(task["task_id"])
+                if dept:
+                    if dept not in departments_output:
+                        departments_output[dept] = []
+                    departments_output[dept].append(task)
         except Exception as e:
             # Team sizing failed, using initial suggested_team_size
-            # Keep initial suggested_team_size if sizing fails
+            # BUT: Still need to normalize to fit within available_workers
+            total_team_size = sum(t.get("suggested_team_size", 1) for t in all_tasks)
+            
+            # Emergency normalization if over-allocated
+            if total_team_size > available_workers:
+                scale_factor = available_workers / total_team_size if total_team_size > 0 else 0
+                for task in all_tasks:
+                    current = task.get("suggested_team_size", 1)
+                    # Scale down but keep at least 1 person per task
+                    task["suggested_team_size"] = max(1, int(current * scale_factor))
+                
+                # Recalculate after normalization
+                total_team_size = sum(t.get("suggested_team_size", 1) for t in all_tasks)
+            
+            # CRITICAL: Update departments_output with normalized team sizes
+            # Rebuild departments_output from updated all_tasks
+            task_id_to_dept = {}
+            for dept, tasks in departments_output.items():
+                for task in tasks:
+                    task_id_to_dept[task["task_id"]] = dept
+            
+            # Rebuild departments_output
+            departments_output = {}
+            for task in all_tasks:
+                dept = task_id_to_dept.get(task["task_id"])
+                if dept:
+                    if dept not in departments_output:
+                        departments_output[dept] = []
+                    departments_output[dept].append(task)
+            
             sizing_stats = {
-                "total_team_size": sum(t.get("suggested_team_size", 1) for t in all_tasks),
+                "total_team_size": total_team_size,
                 "available_workers": available_workers,
-                "adjustments": [f"Team sizing failed: {str(e)}"],
-                "is_balanced": False
+                "adjustments": [f"Team sizing failed: {str(e)}", "Applied emergency normalization"],
+                "is_balanced": total_team_size <= available_workers
             }
     
     # Update epic dates based on tasks
@@ -715,13 +807,17 @@ def run_pipeline_with_rag(
             epic["start-date"] = min(start_dates).strftime("%Y-%m-%d")
             epic["end-date"] = max(end_dates).strftime("%Y-%m-%d")
     
-    # Generate risks using Risk Assessment Framework
+    # Generate risks using Risk Assessment Framework + LLM
     risk_framework = get_risk_assessment_framework()
     event_context_for_risk = {
         **event_context,
         "departments": unique_depts
     }
-    risks = risk_framework.assess_event_risks(event_context_for_risk)
+    # Pass LLM generator to enable LLM risk generation for diversity
+    risks = risk_framework.assess_event_risks(
+        event_context_for_risk,
+        llm_generator=llm_gen if use_llm else None
+    )
     
     # Parallel opportunities detection
     parallel_opportunities = []
@@ -754,6 +850,46 @@ def run_pipeline_with_rag(
         "parallel_opportunities": parallel_opportunities,
         "sizing_stats": sizing_stats if all_tasks else {}
     }
+
+    if dependency_warnings:
+        result["dependency_warnings"] = dependency_warnings
+    
+    # Final validation: Ensure total team size <= available_workers
+    # This is a safety check in case any tasks were added/modified after normalization
+    total_team_size_final = sum(
+        t.get("suggested_team_size", 1) 
+        for dept_tasks in departments_output.values() 
+        for t in dept_tasks
+    )
+    
+    if total_team_size_final > available_workers:
+        # Emergency normalization across all tasks
+        scale_factor = available_workers / total_team_size_final if total_team_size_final > 0 else 0
+        for dept_tasks in departments_output.values():
+            for task in dept_tasks:
+                current = task.get("suggested_team_size", 1)
+                # Scale down but keep at least 1 person per task
+                task["suggested_team_size"] = max(1, int(current * scale_factor))
+        
+        # Update sizing_stats
+        if "sizing_stats" in result:
+            final_total = sum(
+                t.get("suggested_team_size", 1) 
+                for dept_tasks in departments_output.values() 
+                for t in dept_tasks
+            )
+            result["sizing_stats"]["final_allocation"] = final_total
+            result["sizing_stats"]["is_within_budget"] = True
+            result["sizing_stats"]["warnings"] = result["sizing_stats"].get("warnings", []) + [
+                f"Applied final emergency normalization: {total_team_size_final} -> {final_total} (available: {available_workers})"
+            ]
+        
+        # CRITICAL: Update result["departments"] with normalized team sizes
+        result["departments"] = departments_output
+    
+    # CRITICAL: Always update result["departments"] with latest departments_output
+    # This ensures any normalization is reflected in the result
+    result["departments"] = departments_output
     
     # Add cost info if LLM was used
     if use_llm and llm_gen:
@@ -762,16 +898,23 @@ def run_pipeline_with_rag(
     return result
 
 
-def _calculate_days_before_event(priority: str, duration: int, has_dependencies: bool = False) -> int:
+def _calculate_days_before_event(
+    priority: str,
+    duration: int,
+    has_dependencies: bool = False,
+    dependency_depth: int = 0
+) -> int:
     """Calculate how many days before event this task should be completed with safer buffers"""
     base_days = {
-        "critical": 3,
-        "high": 7,
-        "medium": 14,
-        "low": 21,
+        "critical": 5,
+        "high": 10,
+        "medium": 18,
+        "low": 25,
     }
-    extra = 2 if has_dependencies else 0
-    return base_days.get(priority, 7) + duration + extra
+    dep_buffer = 3 if has_dependencies else 0
+    chain_buffer = max(0, dependency_depth) * 2
+    duration_buffer = max(0, int(round(duration * 0.2)))
+    return base_days.get(priority, 10) + duration + dep_buffer + chain_buffer + duration_buffer
 
 
 def _priority_to_complexity(priority: str) -> str:
@@ -790,7 +933,39 @@ def run_pipeline(event_input: Dict[str, Any]) -> Dict[str, Any]:
     """
     Backward compatible wrapper for old run_pipeline calls
     """
-    return run_pipeline_with_rag(event_input, use_llm=True, llm_mode="enhance")
+    return run_pipeline_with_rag(event_input, use_llm=True, llm_mode="generate")
+
+
+def _validate_dependencies(tasks: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """
+    Validate dependencies list to ensure no broken or circular references.
+    Returns mutated tasks and list of warnings.
+    """
+    task_map = {task["task_id"]: task for task in tasks}
+    warnings: List[str] = []
+
+    for task in tasks:
+        valid_deps: List[str] = []
+        for dep_id in task.get("depends_on", []):
+            if dep_id not in task_map:
+                warnings.append(
+                    f"Task '{task.get('name')}' depends on missing task '{dep_id}'"
+                )
+                continue
+
+            dep_task = task_map[dep_id]
+            if task["task_id"] in dep_task.get("depends_on", []):
+                warnings.append(
+                    f"Circular dependency detected between '{task.get('name')}' and '{dep_task.get('name')}'"
+                )
+                continue
+
+            if dep_id not in valid_deps:
+                valid_deps.append(dep_id)
+
+        task["depends_on"] = valid_deps
+
+    return tasks, warnings
 
 
 # Example usage

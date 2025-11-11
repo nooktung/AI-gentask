@@ -74,10 +74,54 @@ class TeamSizeOptimizer:
             # Well balanced
             stats["allocation_strategy"] = "optimal"
         
-        # Step 4: Final validation
+        # Step 4: Final validation and enforcement
+        final_total = sum(t["suggested_team_size"] for t in tasks)
+        
+        # CRITICAL: Ensure total never exceeds available_workers
+        if final_total > available_workers:
+            # Emergency proportional scaling to fit within budget
+            scale_factor = available_workers / final_total if final_total > 0 else 0
+            
+            for task in tasks:
+                priority = task.get("priority", "medium")
+                current = task["suggested_team_size"]
+                
+                # Protect minimums based on priority
+                if priority == "critical":
+                    min_size = 1  # At least 1 person even for critical
+                else:
+                    min_size = 1
+                
+                # Scale down
+                scaled = max(min_size, int(current * scale_factor))
+                task["suggested_team_size"] = scaled
+            
+            # Final check: If still over, force all non-critical to 1
+            final_total = sum(t["suggested_team_size"] for t in tasks)
+            if final_total > available_workers:
+                excess = final_total - available_workers
+                priority_order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+                sorted_by_priority = sorted(
+                    tasks,
+                    key=lambda t: priority_order.get(t.get("priority", "medium"), 1)
+                )
+                
+                for task in sorted_by_priority:
+                    if excess <= 0:
+                        break
+                    if task["suggested_team_size"] > 1:
+                        reduction = min(excess, task["suggested_team_size"] - 1)
+                        task["suggested_team_size"] -= reduction
+                        excess -= reduction
+        
+        # Final validation
         final_total = sum(t["suggested_team_size"] for t in tasks)
         stats["final_allocation"] = final_total
         stats["utilization_rate"] = final_total / available_workers if available_workers > 0 else 0
+        stats["is_within_budget"] = final_total <= available_workers
+        
+        if not stats["is_within_budget"]:
+            stats["warnings"] = [f"WARNING: Total allocation ({final_total}) exceeds available workers ({available_workers})"]
         
         return tasks, stats
     
@@ -182,10 +226,14 @@ class TeamSizeOptimizer:
         1. Protect critical tasks (minimum reduction)
         2. Reduce low-priority tasks first
         3. Never go below 1 person per task
+        4. If still over-allocated, apply proportional scaling
         """
         
         total_demand = sum(t["ideal_team_size"] for t in tasks)
         reduction_needed = total_demand - available_workers
+        
+        if reduction_needed <= 0:
+            return tasks
         
         # Sort tasks by priority (low priority first for reduction)
         priority_order = {"low": 0, "medium": 1, "high": 2, "critical": 3}
@@ -233,6 +281,42 @@ class TeamSizeOptimizer:
                 if task["suggested_team_size"] > 1:
                     task["suggested_team_size"] -= 1
                     remaining -= 1
+        
+        # Final check: If STILL over-allocated, apply proportional scaling
+        current_total = sum(t["suggested_team_size"] for t in tasks)
+        if current_total > available_workers:
+            # Calculate scaling factor
+            scale_factor = available_workers / current_total if current_total > 0 else 0
+            
+            # Apply proportional scaling, but protect minimums
+            for task in tasks:
+                priority = task.get("priority", "medium")
+                current = task["suggested_team_size"]
+                
+                # Calculate minimum based on priority
+                if priority == "critical":
+                    min_size = 2  # Critical tasks need at least 2
+                elif priority == "high":
+                    min_size = 1
+                else:
+                    min_size = 1
+                
+                # Scale down proportionally
+                scaled = max(min_size, int(current * scale_factor))
+                task["suggested_team_size"] = scaled
+            
+            # Final pass: If still over, reduce lowest priority tasks to 1
+            current_total = sum(t["suggested_team_size"] for t in tasks)
+            if current_total > available_workers:
+                excess = current_total - available_workers
+                # Sort by priority (lowest first) and reduce
+                for task in sorted_tasks:
+                    if excess <= 0:
+                        break
+                    if task["suggested_team_size"] > 1:
+                        reduction = min(excess, task["suggested_team_size"] - 1)
+                        task["suggested_team_size"] -= reduction
+                        excess -= reduction
         
         return tasks
     

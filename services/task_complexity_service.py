@@ -4,7 +4,6 @@ Tính độ phức tạp và suggested_team_size dựa trên:
 - Priority, venue tier, dependencies, duration
 """
 
-import random
 from typing import Dict, Any
 from services.venue_service import VenueTier, get_tier_multiplier
 
@@ -94,86 +93,70 @@ def calculate_suggested_team_size(
     headcount_total: int = 50
 ) -> int:
     """
-    Tính suggested_team_size dựa trên complexity và department
-    
-    Args:
-        complexity: "low" | "medium" | "high" | "critical"
-        duration_days: Số ngày thực hiện
-        venue_tier: Venue tier
-        has_critical_dependencies: Có dependencies trên critical path không
-        department: Tên department (để kiểm tra ban tài chính)
-        headcount_total: Tổng headcount (để scale upper-bound hợp lý)
-        
-    Returns:
-        int: Team size (1-6, tùy department)
+    Tính suggested_team_size dựa trên complexity, quy mô sự kiện và đặc thù ban.
     """
-    # Đặc biệt cho ban tài chính/kế toán: 3-6 người (ưu tiên cross-check)
+    base_min_map = {
+        "low": 1,
+        "medium": 2,
+        "high": 3,
+        "critical": 4,
+    }
+    base_min = base_min_map.get(complexity, 2)
+
+    # Headcount scaling
+    if headcount_total >= 600:
+        headcount_multiplier = 3.2
+        max_cap = 15
+    elif headcount_total >= 500:
+        headcount_multiplier = 3.0
+        max_cap = 13
+    elif headcount_total >= 300:
+        headcount_multiplier = 2.5
+        max_cap = 10
+    elif headcount_total >= 150:
+        headcount_multiplier = 2.0
+        max_cap = 8
+    elif headcount_total >= 100:
+        headcount_multiplier = 1.5
+        max_cap = 6
+    else:
+        headcount_multiplier = 1.0
+        max_cap = 5
+
+    is_finance = False
     if department:
         dept_lower = department.lower()
         if any(kw in dept_lower for kw in ["tài chính", "tai chinh", "finance", "kế toán", "ke toan", "accounting"]):
-            # Ban tài chính: 3-6 người, không dưới 3
-            base_min, base_max = 3, 6
-            # Headcount lớn → có thể tăng upper bound hợp lý
-            if headcount_total >= 200:
-                base_max = 6
-            elif headcount_total >= 100:
-                base_max = min(6, base_max + 0)  # giữ nguyên trần
-            # Duration/urgency điều chỉnh nhẹ
-            size = random.randint(base_min, base_max)
-            if duration_days <= 1:
-                size = min(base_max, size + 1)
-            if has_critical_dependencies:
-                size = min(base_max, size + 1)
-            return max(base_min, min(base_max, size))
-    
-    # Base team size từ complexity (không random cứng)
-    if complexity == "low":
-        team_size = 1
-    elif complexity == "medium":
-        team_size = 2
-    elif complexity == "high":
-        team_size = 3
-    elif complexity == "critical":
-        team_size = 4
-    else:
-        team_size = 2  # Default
-    
-    # Venue tier adjustment (chỉ điều chỉnh nhẹ, không thay đổi quá nhiều)
+            is_finance = True
+            base_min = max(base_min, 3)
+            max_cap = max(max_cap, 8 if headcount_total >= 150 else 6)
+
+    team_size = base_min * headcount_multiplier
+
     if venue_tier:
         tier_multiplier = get_tier_multiplier(venue_tier)
-        if tier_multiplier >= 1.3:  # XL venue - có thể cần thêm 1 người
-            if complexity in ["medium", "high", "critical"]:
-                team_size = team_size + 1
-        elif tier_multiplier <= 0.8:  # S venue - có thể giảm 1 người
-            if complexity in ["medium", "high"]:
-                team_size = team_size - 1
-    
-    # Duration adjustment (tasks dài cần nhiều người hơn)
-    if duration_days >= 7 and complexity in ["medium", "high", "critical"]:
-        team_size = team_size + 1
-    elif duration_days <= 1 and complexity in ["medium", "high", "critical"]:
-        team_size = team_size + 1  # Rush job → thêm người để rút ngắn
-    
-    # Critical dependencies adjustment
-    if has_critical_dependencies and complexity in ["medium", "high"]:
-        team_size = team_size + 1
+        if tier_multiplier >= 1.3:
+            team_size *= 1.25
+        elif tier_multiplier <= 0.8:
+            team_size *= 0.9
 
-    # Headcount scaling: sự kiện lớn → upper bound cao hơn một chút
-    if headcount_total >= 200:
-        max_cap = 8
-    elif headcount_total >= 100:
-        max_cap = 6
-    else:
-        max_cap = 5
-    
-    # Đảm bảo trong khoảng hợp lý
-    if complexity == "low":
-        return 1
-    elif complexity == "medium":
-        return max(2, min(4, team_size, max_cap))
-    else:  # high, critical
-        base_min = 3 if complexity == "high" else 4
-        return max(base_min, min(max_cap, team_size))
+    if duration_days >= 10:
+        team_size *= 1.25
+    elif duration_days >= 5:
+        team_size *= 1.1
+    elif duration_days <= 1:
+        team_size *= 1.2
+
+    if has_critical_dependencies and complexity in ["medium", "high", "critical"]:
+        team_size *= 1.15
+
+    if is_finance:
+        team_size = max(team_size, 3)
+
+    team_size = int(round(team_size))
+    team_size = max(base_min, team_size)
+    team_size = min(max_cap, team_size)
+    return team_size
 
 
 def get_complexity_weight(complexity: str) -> float:

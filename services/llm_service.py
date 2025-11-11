@@ -78,7 +78,7 @@ class LLMGenerator:
         # Call LLM
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",  # Cheaper model for cost efficiency
+                model="gpt-4o-mini",  # Using gpt-4o-mini for better quality
                 messages=[
                     {
                         "role": "system",
@@ -94,10 +94,10 @@ class LLMGenerator:
                 response_format={"type": "json_object"}
             )
             
-            # Track cost (GPT-3.5-turbo: $0.0005/1K input, $0.0015/1K output)
+            # Track cost (GPT-4o-mini: $0.150/1M input, $0.600/1M output)
             usage = response.usage
-            input_cost = (usage.prompt_tokens / 1000) * 0.0005
-            output_cost = (usage.completion_tokens / 1000) * 0.0015
+            input_cost = (usage.prompt_tokens / 1000000) * 0.150
+            output_cost = (usage.completion_tokens / 1000000) * 0.600
             self.total_cost += (input_cost + output_cost)
             
             # Parse response
@@ -148,54 +148,124 @@ class LLMGenerator:
             for i, task in enumerate(base_tasks[:target_count], 1):
                 base_tasks_str += f"{i}. {task['name']}: {task['description']}\n"
         
-        prompt = f"""Generate {target_count} specific, actionable tasks for the "{epic_name}" epic in the {department} department.
+        # Calculate days until event for urgency context
+        days_until_event = ""
+        try:
+            event_date_str = event_context.get('event_date', '')
+            if event_date_str:
+                from datetime import datetime
+                event_dt = datetime.strptime(event_date_str, "%Y-%m-%d")
+                days_until = (event_dt - datetime.now()).days
+                days_until_event = f"\n- Days until event: {days_until} days ({'URGENT' if days_until < 14 else 'Normal' if days_until < 30 else 'Plenty of time'})"
+        except:
+            pass
+        
+        # Venue tier details
+        venue_tier = event_context.get('venue_tier', 'M')
+        venue_tier_context = ""
+        if venue_tier == "XL":
+            venue_tier_context = " (Very large venue - requires extensive setup, crowd control, multiple entry points, backup systems)"
+        elif venue_tier == "L":
+            venue_tier_context = " (Large venue - needs careful planning, good infrastructure)"
+        elif venue_tier == "S":
+            venue_tier_context = " (Small venue - simpler setup, but space constraints)"
+        elif venue_tier == "XS":
+            venue_tier_context = " (Very small venue - minimal setup, intimate setting)"
+        
+        # Headcount scaling context
+        headcount = event_context.get('headcount_total', 50)
+        headcount_context = ""
+        if headcount >= 500:
+            headcount_context = " (MASSIVE event - requires extensive coordination, multiple teams, backup plans, crowd management)"
+        elif headcount >= 300:
+            headcount_context = " (Large event - needs careful resource planning, multiple shifts)"
+        elif headcount >= 100:
+            headcount_context = " (Medium-large event - standard coordination needed)"
+        elif headcount >= 50:
+            headcount_context = " (Medium event - manageable scope)"
+        else:
+            headcount_context = " (Small event - simpler coordination)"
+        
+        prompt = f"""Bạn là chuyên gia quản lý sự kiện với nhiều năm kinh nghiệm. Tạo {target_count} nhiệm vụ CỤ THỂ và HÀNH ĐỘNG được cho epic "{epic_name}" trong ban {department}.
 
-### Event Context:
-- Event Type: {event_context.get('event_type', 'N/A')}
-- Venue: {event_context.get('venue', 'N/A')} (Tier: {event_context.get('venue_tier', 'N/A')})
-- Team Size: {event_context.get('headcount_total', 0)} total ({num_workers} workers in this department)
-- Event Date: {event_context.get('event_date', 'N/A')}
-- Special Requirements: {', '.join(event_context.get('special_requirements', []))}
+### THÔNG TIN SỰ KIỆN CHI TIẾT:
+- Loại sự kiện: {event_context.get('event_type', 'N/A')}
+- Địa điểm: {event_context.get('venue', 'N/A')} - Tier {venue_tier}{venue_tier_context}
+- Quy mô: {headcount} người tham gia{headcount_context}
+- Số nhân sự ban {department}: {num_workers} người
+- Ngày tổ chức: {event_context.get('event_date', 'N/A')}{days_until_event}
+- Yêu cầu đặc biệt: {', '.join(event_context.get('special_requirements', [])) if event_context.get('special_requirements') else 'Không có'}
 {dept_responsibilities_str}
 
-### Insights from Similar Past Events:
-Key successful tasks from similar events:
-{chr(10).join('• ' + task for task in key_tasks[:5])}
+### KINH NGHIỆM TỪ CÁC SỰ KIỆN TƯƠNG TỰ:
+Các nhiệm vụ quan trọng đã thành công:
+{chr(10).join('• ' + task for task in key_tasks[:8]) if key_tasks else '• Chưa có dữ liệu'}
 
-Lessons learned:
-{chr(10).join('• ' + lesson for lesson in lessons_learned[:5])}
+Bài học kinh nghiệm:
+{chr(10).join('• ' + lesson for lesson in lessons_learned[:8]) if lessons_learned else '• Chưa có dữ liệu'}
 
-Venue-specific requirements ({event_context.get('venue_tier', 'N/A')} tier):
-{chr(10).join('• ' + req for req in venue_reqs[:5])}
+Yêu cầu đặc thù cho venue tier {venue_tier}:
+{chr(10).join('• ' + req for req in venue_reqs[:8]) if venue_reqs else '• Chưa có yêu cầu đặc biệt'}
 
-Special requirements for this event type:
-{chr(10).join('• ' + req for req in special_reqs[:3])}
+Yêu cầu đặc biệt cho loại sự kiện này:
+{chr(10).join('• ' + req for req in special_reqs[:5]) if special_reqs else '• Không có'}
 {base_tasks_str}
 
-### Task Generation Rules:
-1. Each task MUST start with an ACTION VERB in Vietnamese (e.g., Khảo sát, Thiết kế, Lập, Chuẩn bị, Liên hệ, Setup, Test, Triển khai)
-2. Tasks must be SPECIFIC to the venue type and event type (not generic)
-3. NO duplicate task names
-4. Include realistic durations (1-7 days based on complexity)
-5. Set appropriate priority levels (critical/high/medium/low)
-6. Include dependencies where logical (use task names)
-7. Adapt tasks based on lessons learned and special requirements
-8. Make sure tasks are ACTIONABLE and MEASURABLE
+### QUY TẮC TẠO NHIỆM VỤ:
+1. **BẮT ĐẦU BẰNG ĐỘNG TỪ HÀNH ĐỘNG** (tiếng Việt): Khảo sát, Thiết kế, Lập, Chuẩn bị, Liên hệ, Setup, Test, Triển khai, Thu thập, Tổ chức, Đặt, Booking, Sắp xếp, Phát triển, Tạo, Quay, Đăng, Theo dõi, Nghiên cứu, Phân tích, Xây dựng, Install, Configure, Kiểm tra, Review, Approve, Ký kết, Thanh toán, Phân bổ, Trình, Điều chỉnh, Coordinate, Manage, Monitor, Track
 
-### Output Format (JSON):
+2. **CỤ THỂ THEO SỰ KIỆN**: 
+   - Nếu {headcount} người → cần tasks scale phù hợp (ví dụ: {headcount} người cần nhiều check-in points hơn 50 người)
+   - Nếu venue tier {venue_tier} → cần tasks phù hợp với quy mô venue
+   - Nếu event type {event_context.get('event_type', 'conference')} → cần tasks đặc thù cho loại sự kiện này
+
+3. **PRIORITY LOGIC**:
+   - critical: Nhiệm vụ BẮT BUỘC phải hoàn thành, nếu không sự kiện không thể diễn ra (ví dụ: Setup sân khấu, Test hệ thống AV)
+   - high: Nhiệm vụ quan trọng, ảnh hưởng lớn đến chất lượng sự kiện (ví dụ: Khảo sát venue, Thiết kế layout)
+   - medium: Nhiệm vụ cần thiết nhưng có thể điều chỉnh (ví dụ: Chuẩn bị vật tư, Liên hệ vendor)
+   - low: Nhiệm vụ hỗ trợ, có thể làm sau (ví dụ: Chuẩn bị tài liệu, Tổng kết)
+
+4. **DURATION REALISTIC**:
+   - 1 ngày: Tasks đơn giản, có thể làm nhanh (ví dụ: Liên hệ vendor, Kiểm tra thiết bị)
+   - 2-3 ngày: Tasks phức tạp vừa (ví dụ: Thiết kế layout, Setup hệ thống)
+   - 4-7 ngày: Tasks phức tạp, cần nhiều bước (ví dụ: Phát triển campaign, Setup toàn bộ venue)
+
+5. **DEPENDENCIES LOGIC**:
+   - Task A phụ thuộc vào Task B nếu B phải hoàn thành trước A
+   - Ví dụ: "Thiết kế layout" depends_on ["Khảo sát địa điểm"]
+   - Ví dụ: "Test hệ thống AV" depends_on ["Setup hệ thống AV", "Kéo dây điện"]
+
+6. **ADAPT TO CONTEXT**:
+   - Nếu có lessons learned → tạo tasks để tránh lỗi đã gặp
+   - Nếu có special requirements → tạo tasks để đáp ứng yêu cầu
+   - Nếu venue tier {venue_tier} → tạo tasks phù hợp với quy mô
+   - Nếu {headcount} người → scale tasks phù hợp
+
+7. **ACTIONABLE & MEASURABLE**:
+   - Mỗi task phải có thể thực hiện được (không quá mơ hồ)
+   - Có thể đo lường được khi hoàn thành (ví dụ: "Khảo sát địa điểm" → có báo cáo khảo sát)
+
+### OUTPUT FORMAT (JSON):
 {{
   "tasks": [
     {{
-      "name": "Action verb + specific task name",
-      "description": "Detailed description (1-2 sentences)",
+      "name": "Động từ hành động + tên nhiệm vụ cụ thể",
+      "description": "Mô tả chi tiết (1-2 câu) về nhiệm vụ này, tại sao cần thiết, và làm như thế nào",
       "priority": "critical|high|medium|low",
       "duration_days": 1-7,
-      "depends_on": ["Other task name"] or []
+      "depends_on": ["Tên task khác"] hoặc []
     }}
   ]
 }}
 
-Generate exactly {target_count} tasks optimized for this specific event, venue, and team size."""
+### LƯU Ý QUAN TRỌNG:
+- Tạo ĐÚNG {target_count} tasks (không ít hơn, không nhiều hơn)
+- Mỗi task phải UNIQUE (không trùng tên)
+- Tasks phải SPECIFIC cho sự kiện này (không generic)
+- Ưu tiên tasks dựa trên lessons learned và special requirements
+- Scale tasks phù hợp với {headcount} người và venue tier {venue_tier}
+
+Hãy tạo {target_count} tasks tối ưu cho sự kiện cụ thể này."""
         
         return prompt
     
@@ -285,7 +355,7 @@ Output JSON:
         
         try:
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You enhance task names to be more specific. Respond in JSON."},
                     {"role": "user", "content": prompt}
@@ -295,10 +365,11 @@ Output JSON:
                 response_format={"type": "json_object"}
             )
             
-            # Track cost
+            # Track cost (GPT-4o-mini: $0.150/1M input, $0.600/1M output)
             usage = response.usage
-            cost = (usage.prompt_tokens / 1000) * 0.0005 + (usage.completion_tokens / 1000) * 0.0015
-            self.total_cost += cost
+            input_cost = (usage.prompt_tokens / 1000000) * 0.150
+            output_cost = (usage.completion_tokens / 1000000) * 0.600
+            self.total_cost += (input_cost + output_cost)
             
             result = json.loads(response.choices[0].message.content)
             enhanced_names = result.get("enhanced_names", [])
@@ -314,6 +385,219 @@ Output JSON:
             # Enhancement failed
             return base_tasks
     
+    def generate_risks_with_llm(
+        self,
+        event_context: Dict[str, Any],
+        department: str,
+        existing_risks: Optional[List[Dict[str, Any]]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate event-specific risks using LLM
+        
+        Args:
+            event_context: Event details (event_type, venue, headcount, etc.)
+            department: Department name
+            existing_risks: Optional existing risks to avoid duplicates
+            
+        Returns:
+            List of risk dictionaries with id, title, category, likelihood, impact, etc.
+        """
+        
+        if not self.client:
+            return []
+        
+        event_type = event_context.get("event_type", "conference")
+        venue = event_context.get("venue", "")
+        headcount = event_context.get("headcount_total", 50)
+        event_date = event_context.get("event_date", "")
+        
+        existing_titles = set()
+        if existing_risks:
+            for risk in existing_risks:
+                existing_titles.add(risk.get("title", "").lower())
+        
+        # Calculate urgency based on event date
+        urgency_context = ""
+        try:
+            if event_date:
+                from datetime import datetime
+                event_dt = datetime.strptime(event_date, "%Y-%m-%d")
+                days_until = (event_dt - datetime.now()).days
+                if days_until < 7:
+                    urgency_context = " (RẤT GẤP - < 7 ngày, rủi ro cao về chất lượng và thiếu thời gian)"
+                elif days_until < 14:
+                    urgency_context = " (GẤP - < 14 ngày, cần chú ý timeline)"
+                elif days_until < 30:
+                    urgency_context = " (Bình thường - đủ thời gian chuẩn bị)"
+                else:
+                    urgency_context = " (Còn nhiều thời gian - có thể lên kế hoạch kỹ)"
+        except:
+            pass
+        
+        # Venue tier risk context
+        venue_tier = event_context.get("venue_tier", "M")
+        venue_risk_context = ""
+        if venue_tier == "XL":
+            venue_risk_context = "\n- Venue XL: Rủi ro về crowd control, hệ thống quá tải, an ninh, logistics phức tạp"
+        elif venue_tier == "L":
+            venue_risk_context = "\n- Venue L: Rủi ro về quản lý không gian, thiết bị, nhân sự"
+        elif venue_tier == "S":
+            venue_risk_context = "\n- Venue S: Rủi ro về không gian chật hẹp, thiếu thiết bị, khó di chuyển"
+        
+        # Headcount risk context
+        headcount_risk_context = ""
+        if headcount >= 500:
+            headcount_risk_context = "\n- Quy mô lớn ({headcount} người): Rủi ro về quản lý đám đông, an toàn, logistics, nhân sự không đủ, hệ thống quá tải"
+        elif headcount >= 300:
+            headcount_risk_context = "\n- Quy mô lớn ({headcount} người): Rủi ro về coordination, resource planning, backup systems"
+        elif headcount >= 100:
+            headcount_risk_context = "\n- Quy mô trung bình ({headcount} người): Rủi ro về coordination và resource management"
+        
+        # Event type specific risks
+        event_type_risks = {
+            "career_fair": "Rủi ro đặc thù: Nhà tuyển dụng rút lui, không đủ gian hàng, check-in quá tải, thiếu thông tin công ty",
+            "concert_opening": "Rủi ro đặc thù: Hệ thống AV hỏng, nghệ sĩ đến trễ, giấy phép công an, copyright issues, crowd control",
+            "conference": "Rủi ro đặc thù: Diễn giả không đến, thiết bị presentation lỗi, wifi không đủ, thiếu tài liệu",
+            "food_festival": "Rủi ro đặc thù: ATVSTP, thực phẩm hết, thiếu vendor, vệ sinh không đảm bảo",
+            "sport_competition": "Rủi ro đặc thù: Thương tích, thiết bị thể thao hỏng, thời tiết, đối thủ không đến"
+        }
+        event_specific_context = event_type_risks.get(event_type, "Rủi ro chung cho sự kiện")
+        
+        # Department-specific risk focus
+        dept_risk_focus = {
+            "hậu cần": "Tập trung vào: Logistics, thiết bị, vận chuyển, an ninh, nhân sự onsite, backup systems",
+            "marketing": "Tập trung vào: KPI không đạt, content delay, budget vượt, reach thấp, engagement kém",
+            "chuyên môn": "Tập trung vào: Technical failures, AV issues, network problems, compatibility, backup systems",
+            "tài chính": "Tập trung vào: Budget overrun, payment delays, contract issues, unexpected costs",
+            "đối ngoại": "Tập trung vào: Partner withdrawal, communication delays, VIP issues, contract problems",
+            "thiết kế": "Tập trung vào: Design approval delays, printing issues, brand consistency, deadline pressure"
+        }
+        dept_focus = dept_risk_focus.get(department.lower(), "Rủi ro chung cho ban")
+        
+        prompt = f"""Bạn là chuyên gia quản lý rủi ro sự kiện với nhiều năm kinh nghiệm. Tạo danh sách rủi ro CỤ THỂ và THỰC TẾ cho ban {department} trong sự kiện {event_type}.
+
+### THÔNG TIN SỰ KIỆN CHI TIẾT:
+- Loại sự kiện: {event_type} ({event_specific_context})
+- Địa điểm: {venue} - Tier {venue_tier}{venue_risk_context}
+- Quy mô: {headcount} người tham gia{headcount_risk_context}
+- Ngày tổ chức: {event_date}{urgency_context}
+- Ban phụ trách: {department} ({dept_focus})
+
+### RỦI RO ĐÃ CÓ (TRÁNH TRÙNG LẶP):
+{chr(10).join('• ' + title for title in list(existing_titles)[:10]) if existing_titles else '• Chưa có rủi ro nào'}
+
+### YÊU CẦU TẠO RỦI RO:
+1. **Tạo 3-5 rủi ro CỤ THỂ** cho ban {department}, không generic:
+   - Phải liên quan đến {event_type} và {headcount} người
+   - Phải phù hợp với venue tier {venue_tier}
+   - Phải realistic và có thể xảy ra trong thực tế
+
+2. **Mỗi rủi ro phải có đầy đủ:**
+   - title: Tiêu đề ngắn gọn, cụ thể (< 60 ký tự)
+   - category: logistics/technical/financial/safety/operational/performance/coordination
+   - likelihood: 1-5 
+     * 1 = Rất hiếm (dưới 5% khả năng)
+     * 2 = Hiếm (5-20% khả năng)
+     * 3 = Có thể xảy ra (20-50% khả năng)
+     * 4 = Thường xuyên (50-80% khả năng)
+     * 5 = Rất thường xuyên (trên 80% khả năng)
+   - impact: 1-5
+     * 1 = Nhỏ (ảnh hưởng không đáng kể, dễ xử lý)
+     * 2 = Trung bình (ảnh hưởng một phần, cần điều chỉnh)
+     * 3 = Lớn (ảnh hưởng đáng kể, cần nỗ lực xử lý)
+     * 4 = Rất lớn (ảnh hưởng nghiêm trọng, có thể hủy một phần sự kiện)
+     * 5 = Catastrophic (ảnh hưởng thảm khốc, có thể hủy toàn bộ sự kiện)
+   - description: Mô tả chi tiết rủi ro, tại sao nó có thể xảy ra, và hậu quả nếu xảy ra
+   - mitigation: Array 2-4 biện pháp giảm thiểu CỤ THỂ và HÀNH ĐỘNG được (ví dụ: "Thuê backup equipment", "Có 2 nhân sự dự phòng")
+   - contingency: Array 2-4 kế hoạch dự phòng CỤ THỂ (ví dụ: "Sử dụng venue backup", "Chuyển sang plan B")
+
+3. **Ưu tiên rủi ro:**
+   - Rủi ro có likelihood × impact cao (≥ 12) → ưu tiên
+   - Rủi ro đặc thù cho {event_type} → ưu tiên
+   - Rủi ro liên quan đến {headcount} người và venue tier {venue_tier} → ưu tiên
+   - Rủi ro cho ban {department} → tập trung vào {dept_focus}
+
+4. **Tránh trùng lặp:**
+   - Không tạo rủi ro giống hoặc tương tự với các rủi ro đã có
+   - Mỗi rủi ro phải UNIQUE và SPECIFIC
+
+### OUTPUT FORMAT (JSON):
+{{
+  "risks": [
+    {{
+      "title": "Tiêu đề rủi ro cụ thể và ngắn gọn",
+      "category": "logistics|technical|financial|safety|operational|performance|coordination",
+      "likelihood": 1-5,
+      "impact": 1-5,
+      "description": "Mô tả chi tiết: Rủi ro này là gì, tại sao có thể xảy ra trong sự kiện {event_type} với {headcount} người tại {venue}, và hậu quả nếu xảy ra",
+      "mitigation": ["Biện pháp cụ thể 1", "Biện pháp cụ thể 2", "Biện pháp cụ thể 3"],
+      "contingency": ["Kế hoạch dự phòng cụ thể 1", "Kế hoạch dự phòng cụ thể 2"]
+    }}
+  ]
+}}
+
+### VÍ DỤ RỦI RO TỐT:
+- ❌ KHÔNG TỐT: "Thiết bị hỏng" (quá generic)
+- ✅ TỐT: "Hệ thống âm thanh chính bị hỏng trong buổi soundcheck cuối cùng" (cụ thể, có context)
+
+- ❌ KHÔNG TỐT: "Thiếu nhân sự" (quá generic)
+- ✅ TỐT: "Nhân sự ban hậu cần không đủ trong khung giờ cao điểm (check-in, setup) do {headcount} người tập trung cùng lúc" (cụ thể, có số liệu)
+
+Hãy tạo 3-5 rủi ro CỤ THỂ, THỰC TẾ và HÀNH ĐỘNG được cho ban {department} trong sự kiện này."""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a risk management expert. Generate specific, actionable risks for events. Always respond in valid JSON format."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.8,  # Higher temperature for more diverse risks
+                max_tokens=1000,
+                response_format={"type": "json_object"}
+            )
+            
+            # Track cost
+            usage = response.usage
+            input_cost = (usage.prompt_tokens / 1000000) * 0.150
+            output_cost = (usage.completion_tokens / 1000000) * 0.600
+            self.total_cost += (input_cost + output_cost)
+            
+            # Parse response
+            result = json.loads(response.choices[0].message.content)
+            risks = result.get("risks", [])
+            
+            # Add risk_score and risk_level
+            for i, risk in enumerate(risks, 1):
+                risk["risk_score"] = risk.get("likelihood", 3) * risk.get("impact", 3)
+                risk["risk_level"] = self._calculate_risk_level(risk["risk_score"])
+                # Generate ID
+                dept_code = department[:2].upper().replace(" ", "") if len(department) >= 2 else "XX"
+                risk["id"] = f"LLM-{dept_code}-{i:03d}"
+            
+            return risks
+            
+        except Exception as e:
+            print(f"LLM risk generation failed: {e}")
+            return []
+    
+    def _calculate_risk_level(self, risk_score: float) -> str:
+        """Calculate risk level from score"""
+        if risk_score >= 20:
+            return "critical"
+        elif risk_score >= 15:
+            return "high"
+        elif risk_score >= 8:
+            return "medium"
+        else:
+            return "low"
+    
     def get_total_cost(self) -> float:
         """Get total API cost so far"""
         return self.total_cost
@@ -326,7 +610,7 @@ if __name__ == "__main__":
     print("="*70)
     
     # Initialize (will work even without API key - falls back to templates)
-    llm_gen = LLMTaskGenerator()
+    llm_gen = LLMGenerator()
     
     if not llm_gen.client:
         print("\n⚠️ No OpenAI API key found. Running in fallback mode.")

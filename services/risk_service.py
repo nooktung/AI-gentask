@@ -8,7 +8,7 @@ Không dùng generic risks, mà:
 3. Timeline risks (gần event → quality risks)
 """
 
-from typing import Dict, List
+from typing import Dict, List, Any, Optional
 from services.venue_service import VenueTier
 from datetime import datetime, timedelta
 
@@ -291,7 +291,8 @@ class RiskAssessmentFramework:
     
     def assess_event_risks(
         self,
-        event_context: Dict
+        event_context: Dict,
+        llm_generator: Optional[Any] = None
     ) -> Dict:
         """
         Comprehensive risk assessment
@@ -323,17 +324,228 @@ class RiskAssessmentFramework:
         
         # 1. Get event-specific risks
         event_risks = self.EVENT_SPECIFIC_RISKS.get(event_type, {})
+
+        # Generic baseline risks để đảm bảo mỗi ban đều có cảnh báo
+        generic_risk_catalog = {
+            "hậu cần": [
+                {
+                    "id": "GEN-HC-001",
+                    "title": "Thiết bị quan trọng bị hỏng hoặc thất lạc",
+                    "category": "logistics",
+                    "likelihood": 3,
+                    "impact": 3,
+                    "description": "Thiết bị, vật tư hoặc đạo cụ quan trọng bị hỏng/mất trước giờ triển khai",
+                    "mitigation": [
+                        "Checklist kiểm kê trước & sau khi vận chuyển",
+                        "Chuẩn bị thiết bị dự phòng",
+                        "Bảo hiểm tài sản sự kiện"
+                    ],
+                    "contingency": [
+                        "Thuê thiết bị thay thế khẩn cấp",
+                        "Điều phối lại timeline để setup sau"
+                    ]
+                },
+                {
+                    "id": "GEN-HC-002",
+                    "title": "Thiếu nhân sự onsite trong khung giờ cao điểm",
+                    "category": "resource",
+                    "likelihood": 3,
+                    "impact": 4,
+                    "description": "Không đủ người trực hiện trường dẫn đến bottleneck",
+                    "mitigation": [
+                        "Xây dựng shift rõ ràng",
+                        "Thuê thêm nhân lực part-time",
+                        "Khuyến khích nhân sự hỗ trợ chéo"
+                    ],
+                    "contingency": [
+                        "Ưu tiên xử lý khu vực critical",
+                        "Điều chuyển nhân sự từ ban khác"
+                    ]
+                }
+            ],
+            "marketing": [
+                {
+                    "id": "GEN-MKT-001",
+                    "title": "Chiến dịch truyền thông không đạt KPI",
+                    "category": "performance",
+                    "likelihood": 3,
+                    "impact": 3,
+                    "description": "Reach/engagement thấp hơn mục tiêu, ảnh hưởng lượng khách",
+                    "mitigation": [
+                        "Theo dõi performance hàng ngày",
+                        "A/B testing nội dung",
+                        "Bổ sung ngân sách ads khi cần"
+                    ],
+                    "contingency": [
+                        "Kích hoạt KOL/KOC hợp tác",
+                        "Tăng minigame/giveaway để kéo tương tác"
+                    ]
+                }
+            ],
+            "tài chính": [
+                {
+                    "id": "GEN-TC-001",
+                    "title": "Chi phí phát sinh vượt ngân sách",
+                    "category": "financial",
+                    "likelihood": 4,
+                    "impact": 4,
+                    "description": "Vendor báo giá tăng, phát sinh hạng mục không dự trù",
+                    "mitigation": [
+                        "Dành 10% ngân sách dự phòng",
+                        "Đàm phán điều khoản giữ giá trong hợp đồng",
+                        "Phê duyệt chi phí theo quy trình 2 bước"
+                    ],
+                    "contingency": [
+                        "Cắt/bớt hạng mục không critical",
+                        "Kêu gọi tài trợ bổ sung"
+                    ]
+                }
+            ],
+            "chuyên môn": [
+                {
+                    "id": "GEN-CM-001",
+                    "title": "Thiếu thời gian tổng duyệt kỹ thuật",
+                    "category": "technical",
+                    "likelihood": 3,
+                    "impact": 4,
+                    "description": "Không đủ thời gian chạy kỹ thuật tổng thể trước giờ diễn",
+                    "mitigation": [
+                        "Khóa lịch tổng duyệt cố định",
+                        "Chuẩn bị checklist từng hạng mục",
+                        "Yêu cầu vendor có mặt sớm"
+                    ],
+                    "contingency": [
+                        "Ưu tiên kiểm tra các hạng mục critical",
+                        "Bố trí kỹ thuật viên trực trong chương trình"
+                    ]
+                }
+            ],
+            "thiết kế": [
+                {
+                    "id": "GEN-TK-001",
+                    "title": "Phê duyệt thiết kế bị delay",
+                    "category": "process",
+                    "likelihood": 3,
+                    "impact": 3,
+                    "description": "Stakeholder feedback trễ làm ảnh hưởng timeline in ấn",
+                    "mitigation": [
+                        "Khoá deadline feedback rõ ràng",
+                        "Dự phòng slot chỉnh sửa",
+                        "Gửi preview sớm cho stakeholders"
+                    ],
+                    "contingency": [
+                        "Chuyển sang in nhanh (express)",
+                        "Ưu tiên in các hạng mục critical trước"
+                    ]
+                }
+            ],
+            "đối ngoại": [
+                {
+                    "id": "GEN-DN-001",
+                    "title": "Thiếu thông tin rider yêu cầu đặc biệt",
+                    "category": "coordination",
+                    "likelihood": 2,
+                    "impact": 4,
+                    "description": "Thông tin yêu cầu của đối tác/nghệ sĩ cập nhật trễ dẫn tới không kịp chuẩn bị",
+                    "mitigation": [
+                        "Follow-up định kỳ trước event",
+                        "Yêu cầu confirm bằng văn bản",
+                        "Chuẩn hóa form thu thập thông tin"
+                    ],
+                    "contingency": [
+                        "Chuẩn bị các option dự phòng",
+                        "Thông báo kịp thời cho các ban liên quan"
+                    ]
+                }
+            ],
+            "default": [
+                {
+                    "id": "GEN-DEFAULT-001",
+                    "title": "Thiếu phối hợp liên ban",
+                    "category": "organizational",
+                    "likelihood": 3,
+                    "impact": 3,
+                    "description": "Thông tin không được cập nhật giữa các đầu mối, gây chậm trễ",
+                    "mitigation": [
+                        "Họp điều phối hằng tuần",
+                        "Sử dụng tool quản lý tiến độ chung",
+                        "Phân rõ owner cho từng hạng mục"
+                    ],
+                    "contingency": [
+                        "Kích hoạt chế độ all-hands",
+                        "Escalate lên steering committee"
+                    ]
+                }
+            ]
+        }
+        
+        # Hybrid approach: Use LLM for 50% of departments (prioritize critical ones)
+        # Calculate which departments should use LLM
+        departments_with_llm = set()
+        if llm_generator and llm_generator.client and len(departments) > 0:
+            # Select 50% of departments for LLM (round up)
+            num_llm_depts = max(1, (len(departments) + 1) // 2)
+            # Prioritize critical departments: hậu cần, chuyên môn, marketing
+            priority_depts = ["hậu cần", "chuyên môn", "marketing", "tài chính", "đối ngoại"]
+            for dept in departments:
+                dept_lower = dept.lower()
+                if any(priority in dept_lower for priority in priority_depts):
+                    departments_with_llm.add(dept)
+                    if len(departments_with_llm) >= num_llm_depts:
+                        break
+            # Fill remaining slots if needed
+            for dept in departments:
+                if len(departments_with_llm) >= num_llm_depts:
+                    break
+                if dept not in departments_with_llm:
+                    departments_with_llm.add(dept)
         
         for dept in departments:
             dept_bucket = get_department_bucket(dept)
-            dept_risks = event_risks.get(dept_bucket, [])
+            specific_risks = event_risks.get(dept_bucket, [])
+            combined: List[Dict[str, Any]] = []
+            seen_ids = set()
             
-            # Add risk score
-            for risk in dept_risks:
-                risk["risk_score"] = risk["likelihood"] * risk["impact"]
-                risk["risk_level"] = self._calculate_risk_level(risk["risk_score"])
+            # Event-specific risks (ưu tiên)
+            for risk in specific_risks:
+                risk_copy = risk.copy()
+                risk_copy["risk_score"] = risk_copy["likelihood"] * risk_copy["impact"]
+                risk_copy["risk_level"] = self._calculate_risk_level(risk_copy["risk_score"])
+                combined.append(risk_copy)
+                seen_ids.add(risk_copy["id"])
             
-            risks["by_department"][dept_bucket] = dept_risks
+            # Generic fallback
+            generic_candidates = generic_risk_catalog.get(
+                dept_bucket,
+                generic_risk_catalog.get("default", [])
+            )
+            for risk in generic_candidates:
+                if risk["id"] in seen_ids:
+                    continue
+                risk_copy = risk.copy()
+                risk_copy["risk_score"] = risk_copy["likelihood"] * risk_copy["impact"]
+                risk_copy["risk_level"] = self._calculate_risk_level(risk_copy["risk_score"])
+                combined.append(risk_copy)
+                seen_ids.add(risk_copy["id"])
+            
+            # LLM-generated risks (only for selected departments - 50% hybrid approach)
+            if llm_generator and llm_generator.client and dept in departments_with_llm:
+                try:
+                    llm_risks = llm_generator.generate_risks_with_llm(
+                        event_context=event_context,
+                        department=dept,
+                        existing_risks=combined
+                    )
+                    # Add LLM risks (they have unique IDs, won't duplicate)
+                    for llm_risk in llm_risks:
+                        if llm_risk.get("id") not in seen_ids:
+                            combined.append(llm_risk)
+                            seen_ids.add(llm_risk.get("id"))
+                except Exception as e:
+                    # LLM generation failed, continue with template risks
+                    pass
+            
+            risks["by_department"][dept_bucket] = combined
         
         # 2. Add venue-specific risks
         venue_risks = self._get_venue_specific_risks(venue_tier, headcount)
