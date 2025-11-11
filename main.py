@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from models.schemas import EventInput
-from services.pipeline import run_pipeline
+from services.wbs_pipeline import run_pipeline
 from modules.wbs.router import router as wbs_router
 from modules.wbs.chat_router import router as chat_router
 

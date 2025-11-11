@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from models.schemas import EventInput
-from services.pipeline import run_pipeline
+from services.wbs_pipeline import run_pipeline
 
 router = APIRouter(prefix="/api/wbs", tags=["WBS"])
 

@@ -6,7 +6,7 @@ Each task assigned to specific person (except HOOC and HODs who manage epics)
 
 from typing import List, Dict, Any, Tuple
 from datetime import datetime, timedelta
-from services.venue_classifier import VenueTier, get_tier_multiplier, scale_complexity
+from services.venue_service import VenueTier, get_tier_multiplier, scale_complexity
 
 
 # Action templates - ALL with action verbs
@@ -751,7 +751,7 @@ def _get_generic_templates() -> List[Dict[str, Any]]:
 
 # Example usage
 if __name__ == "__main__":
-    from services.venue_classifier import classify_venue
+    from services.venue_service import classify_venue
     
     # Test with realistic scenario
     print("="*70)

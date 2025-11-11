@@ -14,24 +14,25 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import V3 components
-from services.rag_engine import SimpleRAGEngine
-from services.llm_generator import LLMGenerator
-from services.task_generator import (
+from services.rag_service import SimpleRAGEngine
+from services.llm_service import LLMGenerator
+from services.task_template_service import (
     calculate_available_workers,
     distribute_workers_to_departments,
     ACTION_TEMPLATES,
 )
-from services.risk_generator import generate_risks_by_department, generate_overall_risks
-from services.venue_classifier import classify_venue, VenueTier, get_tier_multiplier
+from services.risk_service import get_risk_assessment_framework
+from services.venue_service import classify_venue, VenueTier, get_tier_multiplier
 from utils.department_normalizer import normalize_department, normalize_departments, get_department_bucket
-from services.task_complexity import (
+from services.task_complexity_service import (
     calculate_task_complexity,
     calculate_suggested_team_size
 )
-from services.dependency_analyzer import analyze_dependencies
+from services.dependency_service import analyze_dependencies
 from modules.wbs.cpm_scheduler import calculate_cpm, detect_parallel_opportunities
-from services.dynamic_task_generator import assign_team_sizes_to_tasks
-from services.priority_classifier import classify_priority_hybrid
+from services.priority_service import classify_priority_hybrid
+from services.team_sizing_service import get_team_size_optimizer
+from services.task_scope_service import get_task_scope_calculator
 
 def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, Any]:
     """
@@ -220,6 +221,17 @@ def run_pipeline_with_rag(
     used_names: set = set()
     # Global task name to task_id mapping (for cross-epic dependencies)
     global_task_map = {}
+
+    # Scope-based task targets per department
+    scope_calculator = get_task_scope_calculator()
+    scope_targets = scope_calculator.calculate_task_distribution({
+        "event_type": event_type,
+        "venue_tier": venue_tier,
+        "special_requirements": all_special_reqs,
+        "event_date": event_date,
+        "departments": [get_department_bucket(e['department']) for e in epics],
+        "headcount_total": headcount_total
+    })
 
     for epic in epics:
         epic_id = epic["epic_id"]
@@ -439,7 +451,22 @@ def run_pipeline_with_rag(
                         existing_names.add(cf_name_lower)
             
             # NO variant creation - only use unique templates
-            # If we need more tasks, we rely on the base templates and event-specific tasks only
+            # Scope-driven expansion if below target
+            target_count = max(len(selected_templates), scope_targets.get(normalized_dept, len(selected_templates)))
+            if len(selected_templates) < target_count:
+                add_templates = scope_calculator.get_task_expansion_strategy(
+                    current_task_count=len(selected_templates),
+                    target_task_count=target_count,
+                    department=normalized_dept,
+                    event_type=event_type
+                )
+                # Append additional templates while keeping names unique
+                existing_names = {t.get("name", "").lower() for t in selected_templates}
+                for t in add_templates:
+                    name_lower = t.get("name", "").lower()
+                    if name_lower and name_lower not in existing_names:
+                        selected_templates.append(t)
+                        existing_names.add(name_lower)
 
         # Create task name to task_id mapping for this epic (to resolve depends_on)
         epic_task_map = {}
@@ -646,25 +673,21 @@ def run_pipeline_with_rag(
             )
             task["suggested_team_size"] = suggested_size
     
-    # Assign team sizes with constraints: sum(suggested_team_size) = available_workers
-    # Constraint: 1 <= suggested_team_size <= 5 per task
+    # Assign team sizes with constraints using optimizer
     if all_tasks:
         try:
-            tasks_with_sizing, sizing_stats = assign_team_sizes_to_tasks(
+            optimizer = get_team_size_optimizer()
+            optimized_tasks, sizing_stats = optimizer.calculate_optimal_team_sizes(
                 tasks=all_tasks,
                 available_workers=available_workers,
-                venue_tier=venue_tier,
-                event_context=event_context,
-                dependency_analysis=dependency_analysis
+                event_context=event_context
             )
-            
-            # Update tasks with adjusted team sizes
-            task_id_to_sizing = {t["task_id"]: t for t in tasks_with_sizing}
+            # Update team sizes
+            opt_map = {t["task_id"]: t for t in optimized_tasks}
             for task in all_tasks:
-                if task["task_id"] in task_id_to_sizing:
-                    sizing_task = task_id_to_sizing[task["task_id"]]
-                    task["suggested_team_size"] = sizing_task.get("suggested_team_size", task.get("suggested_team_size", 1))
-                # Ensure suggested_team_size exists (fallback to 1 if missing)
+                opt = opt_map.get(task["task_id"])
+                if opt and "suggested_team_size" in opt:
+                    task["suggested_team_size"] = opt["suggested_team_size"]
                 if "suggested_team_size" not in task:
                     task["suggested_team_size"] = 1
         except Exception as e:
@@ -692,24 +715,13 @@ def run_pipeline_with_rag(
             epic["start-date"] = min(start_dates).strftime("%Y-%m-%d")
             epic["end-date"] = max(end_dates).strftime("%Y-%m-%d")
     
-    # Generate risks (now with headcount and event_type awareness)
-    risks_by_dept = generate_risks_by_department(
-        departments=unique_depts,
-        venue_tier=venue_tier,
-        event_type=event_type,
-        headcount_total=headcount_total
-    )
-    
-    risks_overall = generate_overall_risks(
-        venue_tier=venue_tier,
-        event_type=event_type,
-        headcount_total=headcount_total
-    )
-    
-    risks = {
-        "by_department": risks_by_dept,
-        "overall": risks_overall
+    # Generate risks using Risk Assessment Framework
+    risk_framework = get_risk_assessment_framework()
+    event_context_for_risk = {
+        **event_context,
+        "departments": unique_depts
     }
+    risks = risk_framework.assess_event_risks(event_context_for_risk)
     
     # Parallel opportunities detection
     parallel_opportunities = []

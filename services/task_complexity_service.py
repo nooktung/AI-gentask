@@ -6,7 +6,7 @@ Tính độ phức tạp và suggested_team_size dựa trên:
 
 import random
 from typing import Dict, Any
-from services.venue_classifier import VenueTier, get_tier_multiplier
+from services.venue_service import VenueTier, get_tier_multiplier
 
 
 def calculate_task_complexity(

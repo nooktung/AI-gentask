@@ -4,7 +4,7 @@ Phân loại priority của task dựa trên keywords và context
 """
 
 from typing import Dict, Any, List, Literal, Set
-from services.venue_classifier import VenueTier
+from services.venue_service import VenueTier
 from datetime import datetime, timedelta
 
 

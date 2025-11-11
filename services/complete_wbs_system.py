@@ -11,28 +11,26 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services.dynamic_task_generator import (
+from services.task_template_service import (
     calculate_available_workers,
-    generate_tasks_with_dynamic_sizing,
-    assign_team_sizes_to_tasks
+    ACTION_TEMPLATES
 )
-from services.dependency_analyzer import (
+from services.dependency_service import (
     analyze_dependencies,
     build_dependency_graph,
     topological_sort,
     find_parallel_tasks
 )
-from services.priority_classifier import (
+from services.priority_service import (
     classify_priority_hybrid,
     calculate_priority_score
 )
-from services.task_complexity import (
+from services.task_complexity_service import (
     calculate_task_complexity,
     calculate_suggested_team_size
 )
 from modules.wbs.cpm_scheduler import calculate_cpm, detect_parallel_opportunities
-from services.venue_classifier import classify_venue, VenueTier
-from services.task_generator import ACTION_TEMPLATES
+from services.venue_service import classify_venue, VenueTier
 from utils.department_normalizer import get_department_bucket
 
 

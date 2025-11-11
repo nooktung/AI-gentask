@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 import uuid
 
-from services.chat_processor import ChatProcessor
+from services.chat_service import ChatProcessor
 
 router = APIRouter(prefix="/api/chat", tags=["Chat WBS"])
 

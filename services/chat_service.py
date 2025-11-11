@@ -23,7 +23,12 @@ try:
 except Exception:
     def load_dotenv() -> None:  # type: ignore
         return None
-from services.pipeline import run_pipeline
+from services.wbs_pipeline import run_pipeline
+try:
+    # Optional NLU integration
+    from services.nlu_service import ConversationalAI  # type: ignore
+except Exception:
+    ConversationalAI = None  # type: ignore
 
 load_dotenv()
 
@@ -32,6 +37,7 @@ class ChatProcessor:
     def __init__(self):
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.client = OpenAI() if os.getenv("OPENAI_API_KEY") else None
+        self.nlu = ConversationalAI() if 'ConversationalAI' in globals() and ConversationalAI else None
         
     def process_message(self, message: str, session_id: str) -> Dict[str, Any]:
         """
@@ -92,6 +98,15 @@ class ChatProcessor:
         Classify user intent using LLM or rule-based
         """
         message_lower = message.lower().strip()
+
+        # Prefer NLU if available
+        try:
+            if self.nlu:
+                intent, confidence = self.nlu.classify_intent(message, session)
+                if confidence >= 0.6:
+                    return intent
+        except Exception:
+            pass
         
         # Greeting patterns (chỉ khi message ngắn và không có info khác)
         if len(message_lower) < 30:
