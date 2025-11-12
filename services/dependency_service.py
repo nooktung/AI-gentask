@@ -70,6 +70,45 @@ def analyze_dependencies(
                 dependency_graph[task_id].append(dep_id)
                 dependency_types[task_id][dep_id] = DependencyType.LOGICAL
     
+    # Detect and remove redundant dependencies (transitive)
+    # If A→B→C exists, remove A→C if present
+    redundant_deps = []
+    for task_id, deps in dependency_graph.items():
+        for dep_id in deps:
+            # Check if dep_id has dependencies
+            dep_deps = dependency_graph.get(dep_id, [])
+            # If any of dep_deps is also in deps, it's redundant (transitive)
+            for transitive_dep in dep_deps:
+                if transitive_dep in deps and transitive_dep != dep_id:
+                    redundant_deps.append((task_id, transitive_dep))
+    
+    # Remove redundant dependencies
+    for task_id, redundant_dep in redundant_deps:
+        if redundant_dep in dependency_graph.get(task_id, []):
+            dependency_graph[task_id].remove(redundant_dep)
+            if task_id in dependency_types and redundant_dep in dependency_types[task_id]:
+                del dependency_types[task_id][redundant_dep]
+    
+    # Warn about complex dependencies (>3 dependencies = bad design)
+    complexity_warnings = []
+    for task_id, deps in dependency_graph.items():
+        if len(deps) > 3:
+            task_name = task_dict.get(task_id, {}).get("name", task_id)
+            complexity_warnings.append(
+                f"Task '{task_name}' has {len(deps)} dependencies - consider splitting into smaller tasks"
+            )
+    
+    # Limit max dependency depth: Check if any chain > 5 levels
+    max_depth = 0
+    for task_id in dependency_graph:
+        depth = _calculate_dependency_depth(task_id, dependency_graph, set())
+        max_depth = max(max_depth, depth)
+    
+    if max_depth > 5:
+        complexity_warnings.append(
+            f"Dependency chain depth ({max_depth}) exceeds recommended limit (5) - may cause delays"
+        )
+    
     # Tìm dependency chains
     chains = _find_dependency_chains(dependency_graph, task_dict)
     
@@ -82,7 +121,9 @@ def analyze_dependencies(
         "lead_times": dict(lead_times),
         "dependency_chains": chains,
         "cycles": cycles,
-        "has_cycles": len(cycles) > 0
+        "has_cycles": len(cycles) > 0,
+        "complexity_warnings": complexity_warnings,
+        "redundant_deps_removed": len(redundant_deps)
     }
 
 
@@ -220,6 +261,36 @@ def _calculate_lead_time(
     
     # Default: duration của dep_task
     return dep_task.get("duration_days", 1)
+
+
+def _calculate_dependency_depth(
+    task_id: str,
+    dependency_graph: Dict[str, List[str]],
+    visited: Set[str]
+) -> int:
+    """
+    Calculate maximum dependency depth for a task (recursive)
+    
+    Returns:
+        Maximum depth (0 = no dependencies, 1 = depends on tasks with no deps, etc.)
+    """
+    if task_id in visited:
+        return 0  # Cycle detected
+    
+    visited.add(task_id)
+    
+    deps = dependency_graph.get(task_id, [])
+    if not deps:
+        visited.remove(task_id)
+        return 0
+    
+    max_depth = 0
+    for dep_id in deps:
+        depth = _calculate_dependency_depth(dep_id, dependency_graph, visited)
+        max_depth = max(max_depth, depth)
+    
+    visited.remove(task_id)
+    return max_depth + 1
 
 
 def _find_dependency_chains(

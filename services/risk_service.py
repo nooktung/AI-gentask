@@ -479,20 +479,20 @@ class RiskAssessmentFramework:
             ]
         }
         
-        # Dynamic LLM ratio based on headcount (same as tasks)
-        # < 50 người: 0% LLM (all templates)
-        # 50-199 người: 30% departments use LLM
-        # >= 200 người: 80% departments use LLM
+        # Dynamic LLM ratio based on organizing team size (same as tasks)
+        # Small team (< 20): 0% LLM (all templates)
+        # Medium team (20-49): 30% departments use LLM
+        # Large team (>= 50): 80% departments use LLM
         headcount = event_context.get("headcount_total", 50)
         departments_with_llm = set()
         if llm_generator and llm_generator.client and len(departments) > 0:
-            # Calculate LLM department ratio based on headcount
-            if headcount < 50:
-                llm_dept_ratio = 0.0  # 0% LLM
-            elif headcount < 200:
-                llm_dept_ratio = 0.3  # 30% LLM
+            # Calculate LLM department ratio based on organizing team size
+            if headcount < 20:
+                llm_dept_ratio = 0.0  # 0% LLM (small team)
+            elif headcount < 50:
+                llm_dept_ratio = 0.3  # 30% LLM (medium team)
             else:
-                llm_dept_ratio = 0.8  # 80% LLM
+                llm_dept_ratio = 0.8  # 80% LLM (large team)
             
             num_llm_depts = max(1, int(len(departments) * llm_dept_ratio)) if llm_dept_ratio > 0 else 0
             
@@ -539,7 +539,7 @@ class RiskAssessmentFramework:
                 combined.append(risk_copy)
                 seen_ids.add(risk_copy["id"])
             
-            # LLM-generated risks (only for selected departments - 50% hybrid approach)
+            # LLM-generated risks (only for selected departments, limit to 3-5 risks/dept)
             if llm_generator and llm_generator.client and dept in departments_with_llm:
                 try:
                     llm_risks = llm_generator.generate_risks_with_llm(
@@ -547,11 +547,26 @@ class RiskAssessmentFramework:
                         department=dept,
                         existing_risks=combined
                     )
-                    # Add LLM risks (they have unique IDs, won't duplicate)
+                    # Limit LLM risks: Max 5 per department to avoid overwhelm
+                    llm_risks = llm_risks[:5]
+                    # Add LLM risks (check for duplicates by normalized title)
                     for llm_risk in llm_risks:
-                        if llm_risk.get("id") not in seen_ids:
+                        risk_id = llm_risk.get("id")
+                        risk_title_normalized = llm_risk.get("title", "").lower().strip()
+                        # Check both ID and title (normalized) to avoid duplicates
+                        is_duplicate = False
+                        if risk_id in seen_ids:
+                            is_duplicate = True
+                        else:
+                            for existing_risk in combined:
+                                existing_title_normalized = existing_risk.get("title", "").lower().strip()
+                                if risk_title_normalized == existing_title_normalized:
+                                    is_duplicate = True
+                                    break
+                        
+                        if not is_duplicate:
                             combined.append(llm_risk)
-                            seen_ids.add(llm_risk.get("id"))
+                            seen_ids.add(risk_id)
                 except Exception as e:
                     # LLM generation failed, continue with template risks
                     pass
@@ -569,7 +584,38 @@ class RiskAssessmentFramework:
         # 4. Calculate risk matrix
         risks["risk_matrix"] = self._build_risk_matrix(risks)
         
-        # 5. Identify top risks
+        # 5. Apply timing and detectability factors to all risks
+        event_date = event_context.get("event_date")
+        if event_date:
+            try:
+                from datetime import datetime
+                event_dt = datetime.strptime(event_date, "%Y-%m-%d")
+                days_until_event = (event_dt - datetime.now()).days
+                
+                # Timing factor: Risks in first 7 days are more dangerous
+                # Detectability: Hard-to-detect risks have higher impact
+                for risk_list in [risks["overall"]] + list(risks["by_department"].values()):
+                    for risk in risk_list:
+                        # Timing factor: Early risks (first 7 days) × 1.3
+                        if days_until_event > 0 and days_until_event <= 7:
+                            risk["risk_score"] = int(risk["risk_score"] * 1.3)
+                            # Recalculate risk_level
+                            risk["risk_level"] = self._calculate_risk_level(risk["risk_score"])
+                        
+                        # Detectability: Check if risk is hard to detect early
+                        risk_title = risk.get("title", "").lower()
+                        risk_desc = risk.get("description", "").lower()
+                        hard_to_detect_keywords = ["ẩn", "khó phát hiện", "unexpected", "sudden", "hidden", "silent"]
+                        if any(kw in risk_title or kw in risk_desc for kw in hard_to_detect_keywords):
+                            # Increase impact by 1 (max 5)
+                            original_impact = risk.get("impact", 3)
+                            risk["impact"] = min(5, original_impact + 1)
+                            risk["risk_score"] = risk.get("likelihood", 3) * risk["impact"]
+                            risk["risk_level"] = self._calculate_risk_level(risk["risk_score"])
+            except:
+                pass
+        
+        # 6. Identify top risks
         all_risks = []
         for dept_risks in risks["by_department"].values():
             all_risks.extend(dept_risks)
@@ -579,7 +625,7 @@ class RiskAssessmentFramework:
         all_risks.sort(key=lambda r: r["risk_score"], reverse=True)
         risks["top_risks"] = all_risks[:10]  # Top 10
         
-        # 6. Prioritize mitigation
+        # 7. Prioritize mitigation
         risks["mitigation_priorities"] = self._prioritize_mitigation(all_risks)
         
         return risks

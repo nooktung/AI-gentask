@@ -73,6 +73,36 @@ def calculate_task_complexity(
         if any(kw in task_name for kw in ["nhà tuyển dụng", "recruiter", "gian hàng", "booth"]):
             base_score *= 1.2
     
+    # Skill requirement: Tasks requiring high skills = more complex
+    skill_keywords = {
+        "chuyên nghiệp": 1.3,
+        "cao cấp": 1.3,
+        "đặc biệt": 1.2,
+        "professional": 1.3,
+        "advanced": 1.3,
+        "specialized": 1.2,
+        "expert": 1.3,
+        "certified": 1.2
+    }
+    for keyword, multiplier in skill_keywords.items():
+        if keyword in task_name:
+            base_score *= multiplier
+            break
+    
+    # Resource availability: Tasks requiring rare/expensive resources = more complex
+    resource_keywords = {
+        "vendor độc quyền": 1.3,
+        "exclusive": 1.3,
+        "thiết bị hiếm": 1.2,
+        "rare equipment": 1.2,
+        "custom": 1.2,
+        "tùy chỉnh": 1.2
+    }
+    for keyword, multiplier in resource_keywords.items():
+        if keyword in task_name:
+            base_score *= multiplier
+            break
+    
     # Classify
     if base_score >= 5.0:
         return "critical"
@@ -90,7 +120,9 @@ def calculate_suggested_team_size(
     venue_tier: VenueTier = None,
     has_critical_dependencies: bool = False,
     department: str = None,
-    headcount_total: int = 50
+    headcount_total: int = 50,
+    event_context: Dict[str, Any] = None,
+    priority: str = "medium"
 ) -> int:
     """
     Tính suggested_team_size dựa trên complexity, quy mô sự kiện và đặc thù ban.
@@ -103,21 +135,18 @@ def calculate_suggested_team_size(
     }
     base_min = base_min_map.get(complexity, 2)
 
-    # Headcount scaling
-    if headcount_total >= 600:
-        headcount_multiplier = 3.2
-        max_cap = 15
-    elif headcount_total >= 500:
-        headcount_multiplier = 3.0
-        max_cap = 13
-    elif headcount_total >= 300:
-        headcount_multiplier = 2.5
+    # Headcount scaling (REDUCED multipliers for more realistic team sizes)
+    if headcount_total >= 100:
+        headcount_multiplier = 2.0  # Reduced from 2.5-3.2
+        max_cap = 12
+    elif headcount_total >= 50:
+        headcount_multiplier = 1.5  # Reduced from 2.0
         max_cap = 10
-    elif headcount_total >= 150:
-        headcount_multiplier = 2.0
+    elif headcount_total >= 30:
+        headcount_multiplier = 1.3
         max_cap = 8
-    elif headcount_total >= 100:
-        headcount_multiplier = 1.5
+    elif headcount_total >= 20:
+        headcount_multiplier = 1.2
         max_cap = 6
     else:
         headcount_multiplier = 1.0
@@ -140,12 +169,32 @@ def calculate_suggested_team_size(
         elif tier_multiplier <= 0.8:
             team_size *= 0.9
 
+    # Duration multiplier
     if duration_days >= 10:
         team_size *= 1.25
     elif duration_days >= 5:
         team_size *= 1.1
     elif duration_days <= 1:
         team_size *= 1.2
+    
+    # Urgency multiplier: Tasks with < 7 days to deadline need more people (rush jobs)
+    if event_context:
+        event_date = event_context.get("event_date")
+        if event_date:
+            try:
+                from datetime import datetime
+                base_days = {
+                    "critical": 8,
+                    "high": 10,
+                    "medium": 18,
+                    "low": 25,
+                }
+                days_until_event = (datetime.strptime(event_date, "%Y-%m-%d") - datetime.now()).days
+                task_deadline_days = days_until_event - (base_days.get(priority, 10) + duration_days)
+                if task_deadline_days < 7 and priority in ["critical", "high"]:
+                    team_size *= 1.3  # Rush job needs more people
+            except:
+                pass
 
     if has_critical_dependencies and complexity in ["medium", "high", "critical"]:
         team_size *= 1.15

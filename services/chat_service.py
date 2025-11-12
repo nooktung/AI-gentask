@@ -230,7 +230,8 @@ class ChatProcessor:
             response_msg = self._format_wbs_summary(event_data, wbs_result)
 
             # Context-aware note for large events
-            if (event_data.get("headcount_total", 0) or 0) >= 200:
+            # Note: headcount_total is organizing team size, not participants
+            if (event_data.get("headcount_total", 0) or 0) >= 50:
                 response_msg += "\n\n🎯 Lưu ý: Đây là sự kiện quy mô lớn, mình đã tăng mức độ phân công và đề xuất team size cao hơn để đảm bảo chất lượng."
             
             # Return with departments containing full task info
@@ -380,7 +381,7 @@ Trả về JSON với các trường (chỉ khi có):
 - event_type: Loại sự kiện
 - event_date: Ngày (YYYY-MM-DD)
 - venue: Địa điểm
-- headcount_total: Số người
+- headcount_total: Số người trong team tổ chức (organizing team size)
 - departments: Array tên ban
 """
                 
@@ -558,9 +559,9 @@ Trả về JSON với các trường (chỉ khi có):
             else:
                 data["event_type"] = "conference"  # default
         
-        # Nếu không có headcount, dùng default
+        # Nếu không có headcount, dùng default (organizing team size)
         if not data.get("headcount_total"):
-            data["headcount_total"] = 50  # default
+            data["headcount_total"] = 20  # default: small organizing team
         
         # Nếu không có venue, dùng default
         if not data.get("venue"):
@@ -592,7 +593,7 @@ Trả về JSON với các trường (chỉ khi có):
         if not data.get("venue"):
             missing.append("địa điểm")
         if not data.get("headcount_total"):
-            missing.append("số lượng người tham gia")
+            missing.append("số người trong team tổ chức")
         if not data.get("departments"):
             missing.append("các ban tham gia (Marketing, Hậu cần...)")
         
@@ -658,7 +659,7 @@ Trả về JSON với các trường (chỉ khi có):
 • Venue tier: {venue_tier}
 • Timeline: {event_data.get('event_date', 'N/A')}
 • Địa điểm: {event_data.get('venue', 'Chưa xác định')}
-• Quy mô: {event_data.get('headcount_total', 'N/A')} người
+• Team tổ chức: {event_data.get('headcount_total', 'N/A')} người
 
 💡 Bạn có thể hỏi tôi về:
 • "Show tasks của ban Marketing"

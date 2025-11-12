@@ -129,9 +129,21 @@ def classify_priority_context_based(
         if dependency_context.get("is_blocking_many", False):
             score += 1
     
-    # +1 điểm nếu gần deadline (< 7 ngày)
-    if dependency_context and dependency_context.get("days_until_deadline", 999) < 7:
-        score += 1
+    # Deadline pressure (INCREASED weight)
+    if dependency_context:
+        days_until_deadline = dependency_context.get("days_until_deadline", 999)
+        if days_until_deadline < 3:
+            score += 2  # Very urgent: +2 (was +1)
+        elif days_until_deadline < 7:
+            score += 1  # Urgent: +1
+    
+    # Failure impact: Task này fail thì ảnh hưởng bao nhiêu tasks khác?
+    if dependency_context:
+        blocking_count = dependency_context.get("blocking_count", 0)
+        if blocking_count >= 5:
+            score += 2  # Blocks many tasks
+        elif blocking_count >= 3:
+            score += 1  # Blocks some tasks
     
     # +1 điểm nếu venue tier lớn (XL, L)
     venue_tier = event_context.get("venue_tier", VenueTier.M)
@@ -144,8 +156,8 @@ def classify_priority_context_based(
     if event_type in important_event_types:
         score += 1
     
-    # Chuyển score thành priority
-    if score >= 6:
+    # Chuyển score thành priority (with adjusted thresholds)
+    if score >= 7:  # Increased threshold (was 6)
         return "critical"
     elif score >= 4:
         return "high"

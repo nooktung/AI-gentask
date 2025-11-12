@@ -261,23 +261,23 @@ def run_pipeline_with_rag(
         # Calculate target_task_count based on headcount (for all modes)
         base_task_count = len(base_templates)
         
-        # Minimum tasks per department: headcount_total / 3 (distributed across departments)
-        # This ensures large events get more tasks
-        min_tasks_per_dept = max(1, int(headcount_total / 3 / len(epics)))
+        # Scale tasks based on organizing team size (not participants)
+        # Team size typically: 10-20 (small), 20-50 (medium), 50-100 (large), 100+ (very large)
+        # Minimum tasks per department: based on available workers per department
+        available_workers_per_dept = max(1, available_workers // len(epics))
+        min_tasks_per_dept = max(1, int(available_workers_per_dept * 0.5))  # ~0.5 tasks per worker
         
-        # Scale with event characteristics (headcount-based scaling)
-        if headcount_total >= 500:
-            event_multiplier = 5.0  # Very large events
-        elif headcount_total >= 300:
-            event_multiplier = 4.0
-        elif headcount_total >= 200:
-            event_multiplier = 3.0
-        elif headcount_total >= 100:
-            event_multiplier = 2.5
+        # Scale with organizing team size (headcount = team size, not participants)
+        if headcount_total >= 100:
+            event_multiplier = 2.5  # Very large organizing team
         elif headcount_total >= 50:
-            event_multiplier = 2.0
+            event_multiplier = 2.0  # Large organizing team
+        elif headcount_total >= 30:
+            event_multiplier = 1.8  # Medium-large team
+        elif headcount_total >= 20:
+            event_multiplier = 1.5  # Medium team
         else:
-            event_multiplier = 1.5
+            event_multiplier = 1.2  # Small team (10-19 people)
         
         tier_multiplier = get_tier_multiplier(venue_tier)
         if tier_multiplier >= 1.3:
@@ -295,27 +295,57 @@ def run_pipeline_with_rag(
             type_multiplier = 1.3
         
         dept_multiplier = 1.0 + (len(departments) - 1) * 0.15
-        calculated_target = int(base_task_count * event_multiplier * venue_multiplier * type_multiplier * dept_multiplier)
         
-        # ALWAYS ensure target_task_count >= min_tasks_per_dept (headcount-based minimum)
-        # This is critical for large events (1000 people = 83+ tasks/department)
+        # Duration multiplier: Multi-day events need more tasks
+        # Parse event_date to calculate duration if available
+        duration_multiplier = 1.0
+        try:
+            if event_date:
+                event_dt = datetime.strptime(event_date, "%Y-%m-%d")
+                days_until = (event_dt - datetime.now()).days
+                # Events with longer preparation time need more tasks
+                if days_until >= 60:
+                    duration_multiplier = 1.3  # Long preparation
+                elif days_until >= 30:
+                    duration_multiplier = 1.2
+                elif days_until >= 14:
+                    duration_multiplier = 1.1
+                # Short timeline (< 14 days) = 1.0 (no multiplier)
+        except:
+            pass
+        
+        calculated_target = int(base_task_count * event_multiplier * venue_multiplier * type_multiplier * dept_multiplier * duration_multiplier)
+        
+        # Max cap: XL venue = 35 tasks/dept, L = 30, M = 25, S = 20
+        max_tasks_per_dept = {
+            VenueTier.XL: 35,
+            VenueTier.L: 30,
+            VenueTier.M: 25,
+            VenueTier.S: 20,
+            VenueTier.XS: 15,
+        }.get(venue_tier, 25)
+        
+        calculated_target = min(calculated_target, max_tasks_per_dept)
+        
+        # ALWAYS ensure target_task_count >= min_tasks_per_dept (based on available workers)
+        # This ensures each worker has sufficient tasks to work on
         target_task_count = max(calculated_target, min_tasks_per_dept)
         
-        # Dynamic LLM/Template ratio based on headcount
-        # < 50 người: 100% Templates (0% LLM)
-        # 50-199 người: 70% Templates + 30% LLM
-        # >= 200 người: 20% Templates + 80% LLM
+        # Dynamic LLM/Template ratio based on organizing team size
+        # Small team (< 20): 100% Templates (simple, fast)
+        # Medium team (20-49): 70% Templates + 30% LLM (some customization)
+        # Large team (>= 50): 20% Templates + 80% LLM (heavy customization)
         selected_templates = base_templates.copy()
         
         if use_llm and llm_gen and llm_mode == "generate":
             try:
-                # Calculate LLM ratio based on headcount
-                if headcount_total < 50:
-                    llm_ratio = 0.0  # 100% templates
-                elif headcount_total < 200:
-                    llm_ratio = 0.3  # 30% LLM, 70% templates
+                # Calculate LLM ratio based on organizing team size
+                if headcount_total < 20:
+                    llm_ratio = 0.0  # 100% templates (small team)
+                elif headcount_total < 50:
+                    llm_ratio = 0.3  # 30% LLM, 70% templates (medium team)
                 else:
-                    llm_ratio = 0.8  # 80% LLM, 20% templates
+                    llm_ratio = 0.8  # 80% LLM, 20% templates (large team)
                 
                 # Calculate task counts
                 llm_target_count = max(1, int(target_task_count * llm_ratio)) if llm_ratio > 0 else 0
@@ -540,12 +570,7 @@ def run_pipeline_with_rag(
         # Now generate tasks only from unique templates (no skipping = no gaps)
         for template in unique_templates:
             base_name = template.get("name", f"Nhiệm vụ {epic_name}")
-
-            task_id = f"T-{task_counter:03d}"
-            task_counter += 1
-            epic_task_map[base_name] = task_id
-            global_task_map[base_name] = task_id
-
+            
             # Calculate dates based on duration and priority
             duration_days = template.get("duration_days", 1)
             base_priority = template.get("priority", "medium")
@@ -560,8 +585,9 @@ def run_pipeline_with_rag(
                     depends_on_ids.append(dep_id)
 
             # Create task dict first (before priority classification)
+            # NOTE: task_id will be assigned AFTER task is successfully created
             task = {
-                "task_id": task_id,
+                "task_id": "",  # Will be assigned after successful creation
                 "epic_id": epic_id,
                 "name": base_name,
                 "category": epic_name,
@@ -607,7 +633,9 @@ def run_pipeline_with_rag(
                 venue_tier=venue_tier,
                 has_critical_dependencies=False,  # Will be updated after CPM
                 department=department,  # Pass department name for special handling (e.g., tài chính)
-                headcount_total=headcount_total
+                headcount_total=headcount_total,
+                event_context=event_context,
+                priority=base_priority
             )
             task["suggested_team_size"] = suggested_size
             
@@ -617,7 +645,6 @@ def run_pipeline_with_rag(
                 dependency_depth = max_dep_depth + 1
             else:
                 dependency_depth = 0
-            task_dependency_depth[task_id] = dependency_depth
 
             # Calculate days before event based on priority (with buffers and deps)
             days_before_event = _calculate_days_before_event(
@@ -638,18 +665,32 @@ def run_pipeline_with_rag(
             task["start-date"] = start_dt.strftime("%Y-%m-%d")
             task["deadline"] = deadline_dt.strftime("%Y-%m-%d")
 
+            # CRITICAL: Generate task_id and update maps ONLY AFTER task is fully created
+            # This ensures no gaps in task_id sequence
+            task_id = f"T-{task_counter:03d}"
+            task["task_id"] = task_id
+            epic_task_map[base_name] = task_id
+            global_task_map[base_name] = task_id
+            # Update dependency depth map with task_id
+            task_dependency_depth[task_id] = dependency_depth
+            
             # Ensure department exists in output dict
             if normalized_dept not in departments_output:
                 departments_output[normalized_dept] = []
             departments_output[normalized_dept].append(task)
+            
+            # CRITICAL: Only increment task_counter AFTER task is successfully created and appended
+            # This ensures no gaps in task_id sequence
+            task_counter += 1
     
     # Collect all tasks for CPM and dependency analysis
     all_tasks = []
     for dept_tasks in departments_output.values():
         all_tasks.extend(dept_tasks)
     
-    # Verify minimum requirement: total tasks >= headcount_total / 3
-    min_total_tasks = max(1, int(headcount_total / 3))
+    # Verify minimum requirement: total tasks based on available workers
+    # Each worker should have at least 1-2 tasks
+    min_total_tasks = max(1, int(available_workers * 1.5))
     if len(all_tasks) < min_total_tasks:
         # Warning: Task count may be insufficient
         pass
@@ -704,6 +745,12 @@ def run_pipeline_with_rag(
                 for dep_id in task.get("depends_on", [])
             )
             
+            # Calculate blocking count (how many tasks depend on this task)
+            blocking_count = len([
+                t for t in all_tasks 
+                if task["task_id"] in t.get("depends_on", [])
+            ])
+            
             try:
                 priority = classify_priority_hybrid(
                     task=task,
@@ -712,10 +759,9 @@ def run_pipeline_with_rag(
                     dependency_context={
                         "is_on_critical_path": task["task_id"] in critical_path_tasks,
                         "has_critical_deps": has_critical_deps,
-                        "is_blocking_many": len([
-                            t for t in all_tasks 
-                            if task["task_id"] in t.get("depends_on", [])
-                        ]) > 2
+                        "is_blocking_many": blocking_count > 2,
+                        "blocking_count": blocking_count,  # ✅ Added for failure impact
+                        "days_until_deadline": (datetime.strptime(task.get("deadline", event_date), "%Y-%m-%d") - datetime.now()).days if task.get("deadline") else 999
                     },
                     critical_path_tasks=critical_path_tasks
                 )
@@ -724,8 +770,52 @@ def run_pipeline_with_rag(
                 # Priority re-classification failed
                 # Keep existing priority
                 pass
+        
+        # Limit priority distribution: Only 10-15% critical, 25-30% high
+        # This prevents priority inflation
+        total_tasks = len(all_tasks)
+        if total_tasks > 0:
+            critical_limit = max(1, int(total_tasks * 0.15))  # Max 15% critical
+            high_limit = max(1, int(total_tasks * 0.30))  # Max 30% high
             
-            # Re-calculate complexity and suggested_team_size with critical path info
+            # Count current priorities
+            critical_tasks = [t for t in all_tasks if t.get("priority") == "critical"]
+            high_tasks = [t for t in all_tasks if t.get("priority") == "high"]
+            
+            # If too many critical, downgrade excess to high
+            if len(critical_tasks) > critical_limit:
+                # Sort by importance (keep highest as critical)
+                critical_tasks_sorted = sorted(
+                    critical_tasks,
+                    key=lambda t: (
+                        t.get("task_id") in critical_path_tasks,
+                        len([d for d in t.get("depends_on", [])]),
+                        t.get("complexity") == "critical"
+                    ),
+                    reverse=True
+                )
+                # Downgrade excess to high
+                for task in critical_tasks_sorted[critical_limit:]:
+                    task["priority"] = "high"
+            
+            # If too many high (including downgraded critical), downgrade excess to medium
+            high_tasks_updated = [t for t in all_tasks if t.get("priority") == "high"]
+            if len(high_tasks_updated) > high_limit:
+                high_tasks_sorted = sorted(
+                    high_tasks_updated,
+                    key=lambda t: (
+                        t.get("task_id") in critical_path_tasks,
+                        len([d for d in t.get("depends_on", [])]),
+                        t.get("complexity") == "high"
+                    ),
+                    reverse=True
+                )
+                # Downgrade excess to medium
+                for task in high_tasks_sorted[high_limit:]:
+                    task["priority"] = "medium"
+        
+        # Re-calculate complexity and suggested_team_size with critical path info
+        for task in all_tasks:
             complexity = calculate_task_complexity(
                 task=task,
                 venue_tier=venue_tier,
@@ -742,6 +832,8 @@ def run_pipeline_with_rag(
                 complexity=complexity,
                 duration_days=task.get("duration_days", 1),
                 venue_tier=venue_tier,
+                event_context=event_context,
+                priority=task.get("priority", "medium"),
                 has_critical_dependencies=has_critical_deps,
                 department=task_department,  # Pass department for special handling
                 headcount_total=headcount_total
@@ -965,16 +1057,22 @@ def _calculate_days_before_event(
     dependency_depth: int = 0
 ) -> int:
     """Calculate how many days before event this task should be completed with safer buffers"""
+    # Increased base days for critical tasks (was 5, now 7-10)
     base_days = {
-        "critical": 5,
+        "critical": 8,  # Increased from 5 to 8 (safer)
         "high": 10,
         "medium": 18,
         "low": 25,
     }
-    dep_buffer = 3 if has_dependencies else 0
-    chain_buffer = max(0, dependency_depth) * 2
+    # Reduced buffers (was 3, now 2; was depth*2, now depth*1)
+    dep_buffer = 2 if has_dependencies else 0  # Reduced from 3
+    chain_buffer = max(0, dependency_depth) * 1  # Reduced from *2
     duration_buffer = max(0, int(round(duration * 0.2)))
-    return base_days.get(priority, 10) + duration + dep_buffer + chain_buffer + duration_buffer
+    
+    result = base_days.get(priority, 10) + duration + dep_buffer + chain_buffer + duration_buffer
+    
+    # Hard cap: No task deadline > 60 days before event
+    return min(result, 60)
 
 
 def _priority_to_complexity(priority: str) -> str:

@@ -113,14 +113,53 @@ class TeamSizeOptimizer:
                         task["suggested_team_size"] -= reduction
                         excess -= reduction
         
-        # Final validation
+        # Final validation - CRITICAL: Ensure exact match with available_workers
+        final_total = sum(t["suggested_team_size"] for t in tasks)
+        
+        # Force exact match: total == available_workers
+        if final_total != available_workers:
+            if final_total > available_workers:
+                # Scale down proportionally
+                scale_factor = available_workers / final_total if final_total > 0 else 0
+                for task in tasks:
+                    current = task["suggested_team_size"]
+                    task["suggested_team_size"] = max(1, int(current * scale_factor))
+            else:
+                # Scale up proportionally (rare case)
+                scale_factor = available_workers / final_total if final_total > 0 else 1
+                for task in tasks:
+                    current = task["suggested_team_size"]
+                    task["suggested_team_size"] = max(1, int(current * scale_factor))
+            
+            # Final pass: Adjust to ensure exact match
+            final_total = sum(t["suggested_team_size"] for t in tasks)
+            diff = available_workers - final_total
+            if diff != 0:
+                # Distribute difference to tasks (prioritize critical/high priority)
+                priority_order = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+                sorted_tasks = sorted(
+                    tasks,
+                    key=lambda t: priority_order.get(t.get("priority", "medium"), 1),
+                    reverse=True
+                )
+                for task in sorted_tasks:
+                    if diff == 0:
+                        break
+                    if diff > 0:
+                        task["suggested_team_size"] += 1
+                        diff -= 1
+                    elif diff < 0 and task["suggested_team_size"] > 1:
+                        task["suggested_team_size"] -= 1
+                        diff += 1
+        
+        # Final check
         final_total = sum(t["suggested_team_size"] for t in tasks)
         stats["final_allocation"] = final_total
         stats["utilization_rate"] = final_total / available_workers if available_workers > 0 else 0
-        stats["is_within_budget"] = final_total <= available_workers
+        stats["is_within_budget"] = final_total == available_workers  # ✅ Exact match
         
         if not stats["is_within_budget"]:
-            stats["warnings"] = [f"WARNING: Total allocation ({final_total}) exceeds available workers ({available_workers})"]
+            stats["warnings"] = [f"WARNING: Total allocation ({final_total}) != available workers ({available_workers})"]
         
         return tasks, stats
     

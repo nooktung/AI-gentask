@@ -500,10 +500,33 @@ class TaskScopeCalculator:
             # No expansion templates available, return empty
             return []
         
-        # Return only unique templates (no variants, no cycling)
-        # If needed > available templates, return only what we have
-        # User doesn't want duplicate tasks with "(Phần X)" suffix
-        return dept_templates[:needed]
+        # Return unique templates up to needed count
+        # If needed > available templates, generate generic tasks to fill the gap
+        if len(dept_templates) >= needed:
+            return dept_templates[:needed]
+        
+        # Not enough templates - generate generic tasks to fill the gap
+        result = dept_templates.copy()
+        remaining = needed - len(dept_templates)
+        
+        # Generate generic tasks with different priorities and durations
+        generic_tasks = []
+        priorities = ["high", "medium", "medium", "low", "low"]
+        durations = [2, 1, 3, 1, 2]
+        
+        for i in range(remaining):
+            priority = priorities[i % len(priorities)]
+            duration = durations[i % len(durations)]
+            generic_task = {
+                "name": f"Chuẩn bị công việc bổ sung {i+1}",
+                "description": f"Công việc hỗ trợ cho ban {department}",
+                "priority": priority,
+                "duration_days": duration,
+            }
+            generic_tasks.append(generic_task)
+        
+        result.extend(generic_tasks[:remaining])
+        return result
 
 
 # Singleton instance
