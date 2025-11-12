@@ -44,14 +44,13 @@ class TeamSizeOptimizer:
         if not tasks or available_workers <= 0:
             return tasks, {"error": "Invalid input"}
         
-        # Step 1: Calculate ideal team size (unconstrained)
+        # Step 1: Calculate initial suggested team size (unconstrained)
         for task in tasks:
-            ideal_size = self._calculate_ideal_team_size(task, event_context)
-            task["ideal_team_size"] = ideal_size
-            task["suggested_team_size"] = ideal_size  # Initial assignment
+            suggested_size = self._calculate_ideal_team_size(task, event_context)
+            task["suggested_team_size"] = suggested_size  # Initial assignment
         
         # Step 2: Calculate total demand
-        total_demand = sum(t["ideal_team_size"] for t in tasks)
+        total_demand = sum(t["suggested_team_size"] for t in tasks)
         
         stats = {
             "available_workers": available_workers,
@@ -229,7 +228,7 @@ class TeamSizeOptimizer:
         4. If still over-allocated, apply proportional scaling
         """
         
-        total_demand = sum(t["ideal_team_size"] for t in tasks)
+        total_demand = sum(t["suggested_team_size"] for t in tasks)
         reduction_needed = total_demand - available_workers
         
         if reduction_needed <= 0:

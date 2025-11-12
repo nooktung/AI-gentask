@@ -479,12 +479,23 @@ class RiskAssessmentFramework:
             ]
         }
         
-        # Hybrid approach: Use LLM for 50% of departments (prioritize critical ones)
-        # Calculate which departments should use LLM
+        # Dynamic LLM ratio based on headcount (same as tasks)
+        # < 50 người: 0% LLM (all templates)
+        # 50-199 người: 30% departments use LLM
+        # >= 200 người: 80% departments use LLM
+        headcount = event_context.get("headcount_total", 50)
         departments_with_llm = set()
         if llm_generator and llm_generator.client and len(departments) > 0:
-            # Select 50% of departments for LLM (round up)
-            num_llm_depts = max(1, (len(departments) + 1) // 2)
+            # Calculate LLM department ratio based on headcount
+            if headcount < 50:
+                llm_dept_ratio = 0.0  # 0% LLM
+            elif headcount < 200:
+                llm_dept_ratio = 0.3  # 30% LLM
+            else:
+                llm_dept_ratio = 0.8  # 80% LLM
+            
+            num_llm_depts = max(1, int(len(departments) * llm_dept_ratio)) if llm_dept_ratio > 0 else 0
+            
             # Prioritize critical departments: hậu cần, chuyên môn, marketing
             priority_depts = ["hậu cần", "chuyên môn", "marketing", "tài chính", "đối ngoại"]
             for dept in departments:

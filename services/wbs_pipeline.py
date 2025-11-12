@@ -34,6 +34,19 @@ from services.priority_service import classify_priority_hybrid
 from services.team_sizing_service import get_team_size_optimizer
 from services.task_scope_service import get_task_scope_calculator
 
+
+def _normalize_task_name(name: str) -> str:
+    """Normalize task name for duplicate detection"""
+    import re
+    # Remove "(Phần X)", "(Part X)" patterns
+    name = re.sub(r'\s*\(Phần\s+\d+\)', '', name, flags=re.IGNORECASE)
+    name = re.sub(r'\s*\(Part\s+\d+\)', '', name, flags=re.IGNORECASE)
+    # Normalize: lowercase, strip, remove extra spaces
+    name = name.lower().strip()
+    name = re.sub(r'\s+', ' ', name)
+    return name
+
+
 def generate_epic_from_department(department: str, epic_id: str) -> Dict[str, Any]:
     """
     Generate epic with standardized title and description based on department
@@ -288,14 +301,24 @@ def run_pipeline_with_rag(
         # This is critical for large events (1000 people = 83+ tasks/department)
         target_task_count = max(calculated_target, min_tasks_per_dept)
         
-        # Hybrid approach: 50% LLM + 50% templates for speed
-        # Use LLM only for critical/complex tasks, templates for the rest
+        # Dynamic LLM/Template ratio based on headcount
+        # < 50 người: 100% Templates (0% LLM)
+        # 50-199 người: 70% Templates + 30% LLM
+        # >= 200 người: 20% Templates + 80% LLM
         selected_templates = base_templates.copy()
         
         if use_llm and llm_gen and llm_mode == "generate":
             try:
-                # Calculate how many tasks to generate with LLM (50% of target)
-                llm_target_count = max(1, int(target_task_count * 0.5))
+                # Calculate LLM ratio based on headcount
+                if headcount_total < 50:
+                    llm_ratio = 0.0  # 100% templates
+                elif headcount_total < 200:
+                    llm_ratio = 0.3  # 30% LLM, 70% templates
+                else:
+                    llm_ratio = 0.8  # 80% LLM, 20% templates
+                
+                # Calculate task counts
+                llm_target_count = max(1, int(target_task_count * llm_ratio)) if llm_ratio > 0 else 0
                 template_count = target_task_count - llm_target_count
                 
                 # Select base tasks for LLM (prioritize critical/high priority ones)
@@ -307,26 +330,31 @@ def run_pipeline_with_rag(
                 )
                 llm_base_tasks = sorted_base[:min(llm_target_count * 2, len(sorted_base))]
                 
-                # Generate LLM tasks (only for selected ones)
-                llm_tasks = llm_gen.generate_tasks_with_rag(
-                    epic_name=epic_name,
-                    department=department,
-                    event_context=event_context,
-                    rag_context=rag_context,
-                    num_workers=min(available_workers, 20),
-                    base_tasks=llm_base_tasks[:10]  # Limit to 10 for LLM call
-                )
+                # Generate LLM tasks (only if llm_ratio > 0)
+                llm_tasks = []
+                if llm_target_count > 0:
+                    llm_tasks = llm_gen.generate_tasks_with_rag(
+                        epic_name=epic_name,
+                        department=department,
+                        event_context=event_context,
+                        rag_context=rag_context,
+                        num_workers=min(available_workers, 20),
+                        base_tasks=llm_base_tasks[:10],  # Limit to 10 for LLM call
+                        target_count=llm_target_count  # Pass calculated target count
+                    )
                 
                 if llm_tasks and len(llm_tasks) > 0:
                     # Take LLM-generated tasks (up to llm_target_count)
                     llm_selected = llm_tasks[:llm_target_count]
                     
-                    # Get remaining tasks from templates (avoid duplicates)
-                    llm_names = {t.get("name", "").lower() for t in llm_selected}
-                    template_selected = [
-                        t for t in base_templates
-                        if t.get("name", "").lower() not in llm_names
-                    ][:template_count]
+                    # Get remaining tasks from templates (avoid duplicates using normalized names)
+                    llm_names_normalized = {_normalize_task_name(t.get("name", "")) for t in llm_selected}
+                    template_selected = []
+                    for t in base_templates:
+                        if _normalize_task_name(t.get("name", "")) not in llm_names_normalized:
+                            template_selected.append(t)
+                            if len(template_selected) >= template_count:
+                                break
                     
                     # Combine: LLM tasks + template tasks
                     selected_templates = llm_selected + template_selected
@@ -484,30 +512,30 @@ def run_pipeline_with_rag(
             )
             # Append additional templates while keeping names unique
             # Check both current epic templates AND global used_names to avoid duplicates
-            existing_names = {t.get("name", "").lower() for t in selected_templates}
+            existing_names = {_normalize_task_name(t.get("name", "")) for t in selected_templates}
             # Also check global used_names to avoid cross-epic duplicates
-            existing_names.update(used_names)
+            existing_names.update({_normalize_task_name(n) for n in used_names})
             for t in add_templates:
-                name_lower = t.get("name", "").lower()
-                if name_lower and name_lower not in existing_names:
+                name_normalized = _normalize_task_name(t.get("name", ""))
+                if name_normalized and name_normalized not in existing_names:
                     selected_templates.append(t)
-                    existing_names.add(name_lower)
+                    existing_names.add(name_normalized)
                     # CRITICAL: Update global used_names immediately to prevent duplicates in other epics
-                    used_names.add(name_lower)
+                    used_names.add(name_normalized)
 
         # Create task name to task_id mapping for this epic (to resolve depends_on)
         epic_task_map = {}
 
         # Generate tasks from selected templates
         # Process in order to resolve dependencies correctly
-        # Filter out duplicates BEFORE generating to avoid gaps in task_id
+        # Filter out duplicates BEFORE generating to avoid gaps in task_id (using normalized names)
         unique_templates = []
         for template in selected_templates:
             base_name = template.get("name", f"Nhiệm vụ {epic_name}")
-            base_name_lower = base_name.lower()
-            if base_name_lower not in used_names:
+            base_name_normalized = _normalize_task_name(base_name)
+            if base_name_normalized not in used_names:
                 unique_templates.append(template)
-                used_names.add(base_name_lower)
+                used_names.add(base_name_normalized)
         
         # Now generate tasks only from unique templates (no skipping = no gaps)
         for template in unique_templates:
@@ -854,7 +882,7 @@ def run_pipeline_with_rag(
     if dependency_warnings:
         result["dependency_warnings"] = dependency_warnings
     
-    # Final validation: Ensure total team size <= available_workers
+    # Final validation: Ensure total team size = available_workers (exact match)
     # This is a safety check in case any tasks were added/modified after normalization
     total_team_size_final = sum(
         t.get("suggested_team_size", 1) 
@@ -862,14 +890,46 @@ def run_pipeline_with_rag(
         for t in dept_tasks
     )
     
-    if total_team_size_final > available_workers:
-        # Emergency normalization across all tasks
-        scale_factor = available_workers / total_team_size_final if total_team_size_final > 0 else 0
-        for dept_tasks in departments_output.values():
-            for task in dept_tasks:
-                current = task.get("suggested_team_size", 1)
-                # Scale down but keep at least 1 person per task
-                task["suggested_team_size"] = max(1, int(current * scale_factor))
+    if total_team_size_final != available_workers:
+        if total_team_size_final > available_workers:
+            # Scale down proportionally
+            scale_factor = available_workers / total_team_size_final if total_team_size_final > 0 else 0
+            for dept_tasks in departments_output.values():
+                for task in dept_tasks:
+                    current = task.get("suggested_team_size", 1)
+                    task["suggested_team_size"] = max(1, int(current * scale_factor))
+        else:
+            # Scale up proportionally (rare case)
+            scale_factor = available_workers / total_team_size_final if total_team_size_final > 0 else 1
+            for dept_tasks in departments_output.values():
+                for task in dept_tasks:
+                    current = task.get("suggested_team_size", 1)
+                    task["suggested_team_size"] = max(1, int(current * scale_factor))
+        
+        # Final pass: Adjust to ensure exact match
+        total_after_scale = sum(
+            t.get("suggested_team_size", 1) 
+            for dept_tasks in departments_output.values() 
+            for t in dept_tasks
+        )
+        diff = available_workers - total_after_scale
+        if diff != 0:
+            # Distribute difference to tasks (prioritize critical/high priority)
+            priority_order = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+            sorted_tasks = sorted(
+                [t for dept_tasks in departments_output.values() for t in dept_tasks],
+                key=lambda t: priority_order.get(t.get("priority", "medium"), 1),
+                reverse=True
+            )
+            for i, task in enumerate(sorted_tasks):
+                if diff == 0:
+                    break
+                if diff > 0:
+                    task["suggested_team_size"] += 1
+                    diff -= 1
+                elif diff < 0 and task["suggested_team_size"] > 1:
+                    task["suggested_team_size"] -= 1
+                    diff += 1
         
         # Update sizing_stats
         if "sizing_stats" in result:

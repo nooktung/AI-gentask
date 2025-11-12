@@ -40,7 +40,8 @@ class LLMGenerator:
         event_context: Dict[str, Any],
         rag_context: Dict[str, Any],
         num_workers: int,
-        base_tasks: Optional[List[Dict[str, Any]]] = None
+        base_tasks: Optional[List[Dict[str, Any]]] = None,
+        target_count: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """
         Generate tasks using hybrid approach: templates + LLM enhancement
@@ -52,6 +53,7 @@ class LLMGenerator:
             rag_context: Retrieved context from similar events
             num_workers: Number of workers available
             base_tasks: Optional base templates to enhance
+            target_count: Optional target number of tasks (if None, calculates from num_workers)
             
         Returns:
             List of enhanced task dictionaries
@@ -61,8 +63,9 @@ class LLMGenerator:
             # Fallback to templates if no LLM available
             return base_tasks or []
         
-        # Calculate target task count (2-3 tasks per worker)
-        target_count = max(3, min(num_workers * 2, 12))
+        # Use passed target_count if provided, otherwise calculate (backward compatible)
+        if target_count is None:
+            target_count = max(3, min(num_workers * 2, 12))
         
         # Build prompt
         prompt = self._build_task_generation_prompt(
@@ -269,6 +272,17 @@ Hãy tạo {target_count} tasks tối ưu cho sự kiện cụ thể này."""
         
         return prompt
     
+    def _normalize_task_name(self, name: str) -> str:
+        """Normalize task name for duplicate detection"""
+        import re
+        # Remove "(Phần X)", "(Part X)" patterns
+        name = re.sub(r'\s*\(Phần\s+\d+\)', '', name, flags=re.IGNORECASE)
+        name = re.sub(r'\s*\(Part\s+\d+\)', '', name, flags=re.IGNORECASE)
+        # Normalize: lowercase, strip, remove extra spaces
+        name = name.lower().strip()
+        name = re.sub(r'\s+', ' ', name)
+        return name
+    
     def _validate_tasks(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Validate and clean LLM-generated tasks"""
         
@@ -288,8 +302,11 @@ Hãy tạo {target_count} tasks tối ưu cho sự kiện cụ thể này."""
         for task in tasks:
             name = task.get("name", "").strip()
             
-            # Skip if no name or duplicate
-            if not name or name in seen_names:
+            # Normalize name for duplicate detection
+            normalized_name = self._normalize_task_name(name)
+            
+            # Skip if no name or duplicate (check normalized name)
+            if not name or normalized_name in seen_names:
                 continue
             
             # Check if starts with action verb
@@ -312,7 +329,7 @@ Hãy tạo {target_count} tasks tối ưu cho sự kiện cụ thể này."""
                 validated_task["priority"] = "medium"
             
             validated.append(validated_task)
-            seen_names.add(name)
+            seen_names.add(normalized_name)  # Store normalized name
         
         return validated
     
